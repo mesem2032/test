@@ -13,11 +13,9 @@ from google.genai import types
 import firebase_admin
 from firebase_admin import credentials, db
 
-# === تصحيح مسار القوالب للعمل على فيرسل ===
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# === 1. تهيئة فايربيز بأمان تام ===
 def init_firebase():
     try:
         if not firebase_admin._apps:
@@ -35,9 +33,8 @@ def init_firebase():
                 'databaseURL': os.getenv("FIREBASE_DATABASE_URL")
             })
         return True
-    except Exception as e:
-        print(f"[Firebase Init Error] {e}")
-        return False
+    except Exception as e: print(f"[Firebase Init Error] {e}")
+    return False
 
 init_firebase()
 
@@ -54,7 +51,6 @@ class ChatPayload(BaseModel):
     prompt: str
     history: list = []
 
-# === دوال فايربيز الآمنة ===
 def get_users_db():
     try:
         ref = db.reference('users')
@@ -77,25 +73,19 @@ def load_history(username: str):
     except: pass
     return []
 
-# ✅ ضمان وجود حساب الأدمن في الفايربيز تلقائياً عند التشغيل
 def ensure_admin_in_db():
     db_data = get_users_db()
     if ADMIN_USERNAME_TARGET and ADMIN_USERNAME_TARGET not in db_data:
-        # كلمة مرور مؤقتة للأدمن حتى تتم إضافته صحياً عبر لوحة التحكم لاحقاً
-        admin_pwd = os.getenv("FIREBASE_ADMIN_DEFAULT_PASS", "admin123") 
         try:
             db.reference(f'users/{ADMIN_USERNAME_TARGET}').set({
-                "password": admin_pwd, 
+                "password": "default_pass", 
                 "name": "القائد",
                 "role": "admin"
             })
-            print(f"[System] Admin account '{ADMIN_USERNAME_TARGET}' created successfully in Firebase.")
-        except Exception as e:
-            print(f"[System] Failed to create admin: {e}")
+        except Exception as e: print(f"[System] Failed to create admin: {e}")
 
 ensure_admin_in_db()
 
-# === تهيئة ذكاء جوجل ===
 GEMINI_CTX, GEMINI_KEYS = [], []
 try:
     keys = [os.getenv(f"GEMINI_API_KEY_{i}") for i in range(1, 6)]
@@ -107,10 +97,8 @@ try:
     GEMINI_KEYS = keys
 except Exception as e: print(f"[Gemini Init Warning] {e}")
 
-# === واجهات الـ API ===
 @app.post("/api/login")
 async def login(d: UserCredential):
-    # 🔥 التحقق 100% من الفايربيز (نفس المنطق تماماً)
     uname = d.username.strip().lower()
     pwd = d.password.strip()
     
@@ -118,18 +106,31 @@ async def login(d: UserCredential):
     if uname in db_data and pwd == db_data[uname].get("password"):
         return {"status": "success", "name": db_data[uname].get("name"), "username": uname}
         
-    return {"status": "error", "message": "بيانات خاطئة أو المستخدم غير مسجل"}
+    return {"status": "error", "message": "بيانات خاطئة أو غير موجودة"}
+
+# ✅ بوابة تسجيل الحساب الجديدة (تمت إضافتها لتجنب رسالة undefined)
+@app.post("/api/register")
+async def register_user(user: UserCredential):
+    db_data = get_users_db()
+    u = user.username.strip().lower()
+    if u in db_data:
+        return {"status": "error", "message": "اسم المستخدم هذا موجود بالفعل"}
+    try:
+        db.reference(f'users/{u}').set({"password": user.password, "name": user.display_name or "طالب"})
+        return {"status": "success"}
+    except:
+        return {"status": "error", "message": "حدث خطأ أثناء الاتصال بقاعدة البيانات"}
 
 @app.post("/api/admin/users/add")
 async def add_user(d: UserCredential):
     db_data = get_users_db()
     u = d.username.strip().lower()
-    if u == ADMIN_USERNAME_TARGET: return {"status": "error", "message": "ممنوع تعديل حساب الأدمن"}
-    if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
+    if u == ADMIN_USERNAME_TARGET: return {"status": "error", "message": "ممنوع تعديل الأدمن"}
+    if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود"}
     try:
         db.reference(f'users/{u}').set({"password": d.password, "name": d.display_name})
         return {"status": "success"}
-    except: return {"status": "error", "message": "فشل الاتصال بالباييز"}
+    except: return {"status": "error", "message": "حدث خطأ"}
 
 @app.get("/api/messages/{username}")
 async def get_msgs(username: str):
