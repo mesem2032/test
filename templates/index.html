@@ -76,10 +76,14 @@ document.getElementById('loginForm').onsubmit=async(e)=>{
             sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
             showApp(); initMsgs();
         } else {
-            document.getElementById('errMsg').textContent=d.message || "فشل الدخول";
+            const loginMsg = d.message && typeof d.message === 'string' && d.message.trim() !== ''
+                ? d.message : "فشل الدخول، تحقق من البيانات";
+            document.getElementById('errMsg').textContent = loginMsg;
+            document.getElementById('errMsg').classList.remove('hidden');
         }
     } catch(err) {
         document.getElementById('errMsg').textContent="تأكد من اتصالك بالإنترنت أو المحاولة لاحقاً.";
+        document.getElementById('errMsg').classList.remove('hidden');
     }
 };
 
@@ -105,7 +109,11 @@ document.getElementById('registerBtn').onclick=async()=>{
             sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
             showApp(); initMsgs();
         } else {
-            document.getElementById('errMsg').textContent="فشل التسجيل: " + (d.message || "حدث خطأ غير متوقع");
+            const msg = d.message && typeof d.message === 'string' && d.message.trim() !== ''
+                ? d.message
+                : "حدث خطأ غير متوقع، حاول مرة أخرى";
+            document.getElementById('errMsg').textContent = "فشل التسجيل: " + msg;
+            document.getElementById('errMsg').classList.remove('hidden');
         }
     } catch(err) {
         document.getElementById('errMsg').textContent="حدث خطأ أثناء الاتصال بالخادم. تأكد من نجاح النشر الأخير.";
