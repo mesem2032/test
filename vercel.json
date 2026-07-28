@@ -1,4 +1,10 @@
 {
   "builds": [{ "src": "main.py", "use": "@vercel/python" }],
-  "routes": [{ "src": "/(.*)", "dest": "/main.py" }]
+  "routes": [
+    { "src": "/static/(.*)", "dest": "/static/$1" },
+    { "src": "/(.*)", "dest": "/main.py" }
+  ],
+  "env": {
+    "VERCEL_FORCE_PYTHON_BUILD_CACHE": "false"
+  }
 }
