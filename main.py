@@ -4,10 +4,10 @@ import sys
 import glob
 import time
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 import firebase_admin
@@ -40,10 +40,14 @@ init_firebase()
 
 app = FastAPI(title="Smart Nursing Assistant")
 
-class UserCredential(BaseModel):
+class UserAuth(BaseModel):
     username: str
     password: str
-    display_name: str
+
+class UserReg(BaseModel):
+    username: str = Field(..., min_length=3, max_length=30)
+    password: str = Field(..., min_length=5)
+    display_name: str = Field(default="طالب")
 
 class ChatPayload(BaseModel):
     username: str
@@ -84,37 +88,50 @@ try:
 except Exception as e: print(f"[Gemini Init Warning] {e}")
 
 @app.post("/api/login")
-async def login(d: UserCredential):
+async def login(d: UserAuth):
     uname = d.username.strip().lower()
     pwd = d.password.strip()
-    
     db_data = get_users_db()
+    
+    # ✅ التحقق المباشر بدون أي تحويلات قد تفقد البيانات
     if uname in db_data and pwd == db_data[uname].get("password"):
         return {"status": "success", "name": db_data[uname].get("name"), "username": uname}
         
-    return {"status": "error", "message": "بيانات خاطئة أو غير موجودة"}
+    return {"status": "error", "message": "الحساب غير موجود أو كلمة المرور خاطئة"}
 
-# ✅ بوابة ترقية الحساب للأدمن
+@app.post("/api/register")
+async def register_user(user: UserReg):
+    db_data = get_users_db()
+    u = user.username.strip().lower()
+    
+    if u in db_data: 
+        return {"status": "error", "message": "اسم المستخدم هذا مسجل بالفعل"}
+    
+    try:
+        db.reference(f'users/{u}').set({"password": user.password, "name": user.display_name})
+        return {"status": "success", "message": "تم إنشاء الحساب بنجاح"}
+    except Exception as e:
+        return {"status": "error", "message": f"فشل الاتصال بقاعدة البيانات: {str(e)}"}
+
 @app.post("/api/promote-to-admin")
 async def promote_to_admin(req: ChatPayload):
     try:
         u = req.username.strip().lower()
         db_data = get_users_db()
         if u in db_data:
-            # إضافة صلاحية الأدمن في نفس الحساب
             db.reference(f'users/{u}').update({"role": "admin"})
             return {"status": "success", "message": "تم الترقية بنجاح! أعد تسجيل الدخول."}
-        return {"status": "error", "message": "لم يتم العثور على الحساب."}
-    except:
-        return {"status": "error", "message": "حدث خطأ أثناء الترقية"}
+        return {"status": "error", "message": "لم يتم العثور على الحساب في قاعدة البيانات."}
+    except Exception as e:
+        return {"status": "error", "message": f"حدث خطأ أثناء الترقية: {str(e)}"}
 
 @app.post("/api/admin/users/add")
-async def add_user(d: UserCredential):
+async def add_user(d: UserAuth):
     db_data = get_users_db()
     u = d.username.strip().lower()
     if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود"}
     try:
-        db.reference(f'users/{u}').set({"password": d.password, "name": d.display_name})
+        db.reference(f'users/{u}').set({"password": d.password, "name": "نضيف"})
         return {"status": "success"}
     except: return {"status": "error", "message": "حدث خطأ"}
 
