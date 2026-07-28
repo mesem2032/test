@@ -17,6 +17,10 @@
             <input type="password" id="pIn" placeholder="كلمة المرور" required class="w-full p-3 mb-4 border rounded rtl:text-right">
             <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700 font-bold">دخول</button>
         </form>
+        
+        <hr class="my-4 border-gray-200">
+        <button id="registerBtn" class="w-full bg-green-600 text-white p-3 rounded hover:bg-green-700 font-bold">📝 تسجيل حساب جديد (إنشاء في الفايربيز)</button>
+        
         <p id="errMsg" class="mt-3 text-sm text-center text-red-500 hidden"></p>
     </div>
 </div>
@@ -52,6 +56,24 @@ document.getElementById('loginForm').onsubmit=async(e)=>{
     if(d.status==='success'){
         currentUser=d; sessionStorage.setItem('nk',JSON.stringify(d)); showApp(); initMsgs();
     } else document.getElementById('errMsg').textContent=d.message, document.getElementById('errMsg').classList.remove('hidden');
+};
+
+// دالة التسجيل وإنشاء الحساب في الفايربيز مباشرة
+document.getElementById('registerBtn').onclick=async()=>{
+    const u=document.getElementById('uIn').value.trim().toLowerCase();
+    const p=document.getElementById('pIn').value.trim();
+    if(!u || !p){ alert("يرجى إدخال اسم مستخدم وكلمة مرور"); return;}
+    
+    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,display_name:"طالب"})});
+    const d=await r.json();
+    if(d.status==='success'){
+        currentUser={status:'success', name:"طالب", username:u};
+        sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
+        showApp(); initMsgs();
+    } else {
+        document.getElementById('errMsg').textContent="فشل التسجيل: " + d.message;
+        document.getElementById('errMsg').classList.remove('hidden');
+    }
 };
 
 function showApp(){
