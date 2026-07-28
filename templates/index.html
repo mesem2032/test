@@ -49,12 +49,16 @@
 <script>
 let currentUser=null, chatHistory=[];
 
-// تحميل الجلسة المحفوظة
 if(sessionStorage.getItem('nk')){
+    try { currentUser=JSON.parse(sessionStorage.getItem('nk')); showApp(); initMsgs(); } catch(e) {}
+}
+
+// 🛠 فحص صحة الاتصال بالسيرفر قبل أي عملية
+async function checkServerStatus() {
     try {
-        currentUser=JSON.parse(sessionStorage.getItem('nk'));
-        showApp(); initMsgs();
-    } catch(e) { sessionStorage.removeItem('nk'); }
+        const r = await fetch('/api/login', { method: 'POST', headers:{'Content-Type':'application/json'}, body: '{}' });
+        if(r.status === 422 || r.ok) return true;
+    } catch(e) { alert("⚠️ لا يوجد اتصال بالخادم، تأكد من نجاح النشر الأخير!"); return false; }
 }
 
 document.getElementById('loginForm').onsubmit=async(e)=>{
@@ -62,42 +66,39 @@ document.getElementById('loginForm').onsubmit=async(e)=>{
     const username = document.getElementById('uIn').value.trim().toLowerCase();
     const password = document.getElementById('pIn').value.trim();
     
-    if(!username || !password){ document.getElementById('errMsg').innerText="يرجى ملء الحقول"; return;}
+    if(!username || !password){ document.getElementById('errMsg').innerText="يرجى ملء جميع الحقول"; return;}
+
+    const ok = await checkServerStatus();
+    if(!ok) return;
 
     try {
-        const r=await fetch('/api/login',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({username:username, password:password})
-        });
+        // 🔑 إرسال البيانات باستخدام Format الرسمي
+        const payload = JSON.stringify({ username: username, password: password });
+        const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
         const d=await r.json();
+        
         if(d.status==='success'){
-            currentUser=d; 
-            sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
-            showApp(); initMsgs();
+            currentUser=d; sessionStorage.setItem('nk',JSON.stringify(currentUser)); showApp(); initMsgs();
         } else {
-            document.getElementById('errMsg').textContent=d.message || "فشل الدخول";
+            document.getElementById('errMsg').textContent=d.message || "بيانات خاطئة";
         }
     } catch(err) {
-        document.getElementById('errMsg').textContent="تأكد من اتصالك بالإنترنت أو المحاولة لاحقاً.";
+        document.getElementById('errMsg').textContent="خطأ في الاتصال بالخادم. تأكد من تشغيل المشروع.";
     }
 };
 
-// دالة التسجيل وإنشاء الحساب في الفايربيز مباشرة
 document.getElementById('registerBtn').onclick=async()=>{
     const u=document.getElementById('uIn').value.trim().toLowerCase();
     const p=document.getElementById('pIn').value.trim();
     
-    if(!u || !p){ alert("يرجى إدخال اسم مستخدم وكلمة مرور"); return;}
+    if(!u || !p){ alert("يرجى إدخال اسم مستخدم (3 أحرف كحد أدنى) وكلمة سر (5 أحرف كحد أدنى)"); return;}
     
+    const ok = await checkServerStatus();
+    if(!ok) return;
+
     try {
-        // التأكد من أن الشكل المطلوب للبايثون كامل
-        const payload = { username: u, password: p, display_name: "طالب" };
-        const r=await fetch('/api/register',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(payload)
-        });
+        const payload = JSON.stringify({ username: u, password: p, display_name: "طالب" });
+        const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
         const d=await r.json();
         
         if(d.status==='success'){
@@ -105,10 +106,11 @@ document.getElementById('registerBtn').onclick=async()=>{
             sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
             showApp(); initMsgs();
         } else {
-            document.getElementById('errMsg').textContent="فشل التسجيل: " + (d.message || "حدث خطأ غير متوقع");
+            // إظهار الخطأ الحقيقي من الباك إند
+            document.getElementById('errMsg').textContent="❌ " + (d.message || "حدث خطأ غير معروف");
         }
     } catch(err) {
-        document.getElementById('errMsg').textContent="حدث خطأ أثناء الاتصال بالخادم. تأكد من نجاح النشر الأخير.";
+        document.getElementById('errMsg').textContent="فشل الطلب، تأكد من اتصال الشبكة.";
     }
 };
 
@@ -122,24 +124,18 @@ function showApp(){
 async function initMsgs(){
     try{
         const r=await fetch(`/api/messages/${currentUser.username}`);
-        if(r.ok){
-            chatHistory=await r.json();
-            chatHistory.forEach(m=>appendBubble(m.content,m.role));
-        }
+        if(r.ok){ chatHistory=await r.json(); chatHistory.forEach(m=>appendBubble(m.content,m.role)); }
     }catch(e){ console.error("Error loading history:", e); }
 }
 
-// تنفيذ عملية الترقية
 document.getElementById('adminPromoteBtn').onclick=async()=>{
     document.getElementById('adminPromoteBtn').disabled=true;
     document.getElementById('adminPromoteBtn').innerText="جاري إرسال طلب الصلاحيات...";
-    
     try {
         const r=await fetch('/api/promote-to-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,history:[]})});
         const d=await r.json();
         alert(d.message); 
     } catch(e) { alert("فشل الاتصال بطلب الترقية"); }
-    
     location.reload();
 };
 
@@ -154,9 +150,7 @@ document.getElementById('sendForm').onsubmit=async(e)=>{
         const d=await r.json();
         appendBubble(d.reply,'assistant');
         chatHistory.push({role:'user',content:txt},{role:'assistant',content:d.reply});
-    } catch(err) {
-        appendBubble("⚠️ عذراً، حدث خطأ في الاتصال بالمساعد الذكي.", 'assistant');
-    }
+    } catch(err) { appendBubble("⚠️ عذراً، حدث خطأ في الاتصال بالمساعد الذكي.", 'assistant'); }
     btn.disabled=false; btn.innerText='إرسال';
 };
 
