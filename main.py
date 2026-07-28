@@ -13,11 +13,11 @@ from google.genai import types
 import firebase_admin
 from firebase_admin import credentials, db
 
-# === 1. تصحيح مسار القوالب ليشتغل على فيرسل 100% ===
+# === تصحيح مسار القوالب للعمل على فيرسل ===
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# === 2. تهيئة فايربيز بأمان تام ===
+# === 1. تهيئة فايربيز بأمان تام ===
 def init_firebase():
     try:
         if not firebase_admin._apps:
@@ -36,13 +36,13 @@ def init_firebase():
             })
         return True
     except Exception as e:
-        print(f"[Firebase Init Warning] {e}")
+        print(f"[Firebase Init Error] {e}")
         return False
 
 init_firebase()
 
 app = FastAPI(title="Smart Nursing Assistant")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip().lower()
+ADMIN_USERNAME_TARGET = os.getenv("ADMIN_USERNAME", "").strip().lower()
 
 class UserCredential(BaseModel):
     username: str
@@ -54,7 +54,7 @@ class ChatPayload(BaseModel):
     prompt: str
     history: list = []
 
-# === دوال فايربيز (معالجة أخطاء دقيقة) ===
+# === دوال فايربيز الآمنة ===
 def get_users_db():
     try:
         ref = db.reference('users')
@@ -77,33 +77,54 @@ def load_history(username: str):
     except: pass
     return []
 
+# ✅ ضمان وجود حساب الأدمن في الفايربيز تلقائياً عند التشغيل
+def ensure_admin_in_db():
+    db_data = get_users_db()
+    if ADMIN_USERNAME_TARGET and ADMIN_USERNAME_TARGET not in db_data:
+        # كلمة مرور مؤقتة للأدمن حتى تتم إضافته صحياً عبر لوحة التحكم لاحقاً
+        admin_pwd = os.getenv("FIREBASE_ADMIN_DEFAULT_PASS", "admin123") 
+        try:
+            db.reference(f'users/{ADMIN_USERNAME_TARGET}').set({
+                "password": admin_pwd, 
+                "name": "القائد",
+                "role": "admin"
+            })
+            print(f"[System] Admin account '{ADMIN_USERNAME_TARGET}' created successfully in Firebase.")
+        except Exception as e:
+            print(f"[System] Failed to create admin: {e}")
+
+ensure_admin_in_db()
+
 # === تهيئة ذكاء جوجل ===
 GEMINI_CTX, GEMINI_KEYS = [], []
 try:
     keys = [os.getenv(f"GEMINI_API_KEY_{i}") for i in range(1, 6)]
     keys = [k for k in keys if k]
     pdfs = glob.glob(str(BASE_DIR / "*.pdf"))
-    if not pdfs: raise FileNotFoundError("No PDF books found in repository root.")
+    if not pdfs: raise FileNotFoundError("No PDF books found.")
     client = genai.Client(api_key=keys[0])
     GEMINI_CTX = [client.files.upload(file=f) for f in pdfs]
     GEMINI_KEYS = keys
-except Exception as e: 
-    print(f"[Gemini Init Warning] {e}")
+except Exception as e: print(f"[Gemini Init Warning] {e}")
 
 # === واجهات الـ API ===
 @app.post("/api/login")
 async def login(d: UserCredential):
+    # 🔥 التحقق 100% من الفايربيز (نفس المنطق تماماً)
+    uname = d.username.strip().lower()
+    pwd = d.password.strip()
+    
     db_data = get_users_db()
-    u = d.username.strip().lower()
-    if u in db_data and d.password == db_data[u].get("password"):
-        return {"status": "success", "name": db_data[u].get("name"), "username": u}
-    return {"status": "error", "message": "بيانات خاطئة"}
+    if uname in db_data and pwd == db_data[uname].get("password"):
+        return {"status": "success", "name": db_data[uname].get("name"), "username": uname}
+        
+    return {"status": "error", "message": "بيانات خاطئة أو المستخدم غير مسجل"}
 
 @app.post("/api/admin/users/add")
 async def add_user(d: UserCredential):
     db_data = get_users_db()
     u = d.username.strip().lower()
-    if u == ADMIN_USERNAME: return {"status": "error", "message": "ممنوع تعديل حساب الأدمن"}
+    if u == ADMIN_USERNAME_TARGET: return {"status": "error", "message": "ممنوع تعديل حساب الأدمن"}
     if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     try:
         db.reference(f'users/{u}').set({"password": d.password, "name": d.display_name})
@@ -140,7 +161,6 @@ async def ask_ai(req: ChatPayload):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    # حل نهائي لمشكلة Internal Server Error في فيرسل
     try:
         return templates.TemplateResponse("index.html", {"request": request})
     except Exception as e:
