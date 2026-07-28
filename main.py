@@ -151,7 +151,7 @@ async def ask_ai(req: ChatPayload):
                 ctx.append(f"{m['role']}: {m['content']}")
             ctx.append(f"Question: {req.prompt}")
             
-            resp = cl.models.generate_content(model='gemini-2.0-flash-exp', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
+            resp = cl.models.generate_content(model='gemini-3.5-flash', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
             ans = resp.text
             save_msg(req.username, "user", req.prompt)
             save_msg(req.username, "assistant", ans)
