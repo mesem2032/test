@@ -53,65 +53,44 @@ if(sessionStorage.getItem('nk')){
     try { currentUser=JSON.parse(sessionStorage.getItem('nk')); showApp(); initMsgs(); } catch(e) {}
 }
 
-// 🛠 فحص صحة الاتصال بالسيرفر قبل أي عملية
 async function checkServerStatus() {
-    try {
-        const r = await fetch('/api/login', { method: 'POST', headers:{'Content-Type':'application/json'}, body: '{}' });
-        if(r.status === 422 || r.ok) return true;
-    } catch(e) { alert("⚠️ لا يوجد اتصال بالخادم، تأكد من نجاح النشر الأخير!"); return false; }
+    try { const r = await fetch('/api/login', { method: 'POST', headers:{'Content-Type':'application/json'}, body: '{}' }); return r.status === 422 || r.ok; } 
+    catch(e) { alert("⚠️ لا يوجد اتصال بالخادم!"); return false; }
 }
 
 document.getElementById('loginForm').onsubmit=async(e)=>{
     e.preventDefault();
     const username = document.getElementById('uIn').value.trim().toLowerCase();
     const password = document.getElementById('pIn').value.trim();
-    
     if(!username || !password){ document.getElementById('errMsg').innerText="يرجى ملء جميع الحقول"; return;}
-
-    const ok = await checkServerStatus();
-    if(!ok) return;
+    if(!await checkServerStatus()) return;
 
     try {
-        // 🔑 إرسال البيانات باستخدام Format الرسمي
         const payload = JSON.stringify({ username: username, password: password });
         const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
         const d=await r.json();
-        
         if(d.status==='success'){
             currentUser=d; sessionStorage.setItem('nk',JSON.stringify(currentUser)); showApp(); initMsgs();
-        } else {
-            document.getElementById('errMsg').textContent=d.message || "بيانات خاطئة";
-        }
-    } catch(err) {
-        document.getElementById('errMsg').textContent="خطأ في الاتصال بالخادم. تأكد من تشغيل المشروع.";
-    }
+        } else { document.getElementById('errMsg').textContent=d.message || "بيانات خاطئة"; }
+    } catch(err) { document.getElementById('errMsg').textContent="خطأ في الاتصال."; }
 };
 
 document.getElementById('registerBtn').onclick=async()=>{
     const u=document.getElementById('uIn').value.trim().toLowerCase();
     const p=document.getElementById('pIn').value.trim();
+    if(!u || !p){ alert("يرجى إدخال اسم مستخدم وكلمة سر"); return;}
+    if(!await checkServerStatus()) return;
     
-    if(!u || !p){ alert("يرجى إدخال اسم مستخدم (3 أحرف كحد أدنى) وكلمة سر (5 أحرف كحد أدنى)"); return;}
-    
-    const ok = await checkServerStatus();
-    if(!ok) return;
-
     try {
         const payload = JSON.stringify({ username: u, password: p, display_name: "طالب" });
         const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
         const d=await r.json();
-        
         if(d.status==='success'){
             currentUser={status:'success', name:"طالب", username:u};
             sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
             showApp(); initMsgs();
-        } else {
-            // إظهار الخطأ الحقيقي من الباك إند
-            document.getElementById('errMsg').textContent="❌ " + (d.message || "حدث خطأ غير معروف");
-        }
-    } catch(err) {
-        document.getElementById('errMsg').textContent="فشل الطلب، تأكد من اتصال الشبكة.";
-    }
+        } else { document.getElementById('errMsg').textContent="❌ " + (d.message || "حدث خطأ غير معروف"); }
+    } catch(err) { document.getElementById('errMsg').textContent="فشل الطلب."; }
 };
 
 function showApp(){
@@ -122,21 +101,20 @@ function showApp(){
 }
 
 async function initMsgs(){
-    try{
-        const r=await fetch(`/api/messages/${currentUser.username}`);
-        if(r.ok){ chatHistory=await r.json(); chatHistory.forEach(m=>appendBubble(m.content,m.role)); }
-    }catch(e){ console.error("Error loading history:", e); }
+    try{ const r=await fetch(`/api/messages/${currentUser.username}`); if(r.ok){ chatHistory=await r.json(); chatHistory.forEach(m=>appendBubble(m.content,m.role)); } }catch(e){}
 }
 
+// ✅ تفعيل زر الترقية بدقة ومنع ظهور undefined
 document.getElementById('adminPromoteBtn').onclick=async()=>{
     document.getElementById('adminPromoteBtn').disabled=true;
     document.getElementById('adminPromoteBtn').innerText="جاري إرسال طلب الصلاحيات...";
+    const payload = { username: currentUser.username, prompt: "request_promotion", history: [] };
     try {
-        const r=await fetch('/api/promote-to-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,history:[]})});
-        const d=await r.json();
-        alert(d.message); 
-    } catch(e) { alert("فشل الاتصال بطلب الترقية"); }
-    location.reload();
+        const r=await fetch('/api/promote-to-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        let d = {}; try { d = await r.json(); } catch(e) {}
+        if(d && d.status === 'success') { alert("✅ تم ترقية صلاحياتك بنجاح!"); location.reload(); } 
+        else { alert("⚠️ لم يتم الترقية: " + (d.message || "تم رفض الصلاحيات.")); location.reload(); }
+    } catch(err) { alert("❌ فشل الاتصال بالخادم أثناء الترقية."); location.reload(); }
 };
 
 document.getElementById('sendForm').onsubmit=async(e)=>{
@@ -144,7 +122,6 @@ document.getElementById('sendForm').onsubmit=async(e)=>{
     const inp=document.getElementById('prompt'), btn=document.getElementById('btnSend');
     const txt=inp.value.trim(); if(!txt)return;
     appendBubble(txt,'user'); inp.value=''; btn.disabled=true; btn.innerText='جاري...';
-    
     try {
         const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,prompt:txt,history:chatHistory})});
         const d=await r.json();
