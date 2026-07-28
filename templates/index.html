@@ -48,35 +48,67 @@
 
 <script>
 let currentUser=null, chatHistory=[];
+
+// تحميل الجلسة المحفوظة
 if(sessionStorage.getItem('nk')){
-    currentUser=JSON.parse(sessionStorage.getItem('nk'));
-    showApp(); initMsgs();
+    try {
+        currentUser=JSON.parse(sessionStorage.getItem('nk'));
+        showApp(); initMsgs();
+    } catch(e) { sessionStorage.removeItem('nk'); }
 }
 
 document.getElementById('loginForm').onsubmit=async(e)=>{
     e.preventDefault();
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('uIn').value,password:document.getElementById('pIn').value})});
-    const d=await r.json();
-    if(d.status==='success'){
-        currentUser=d; sessionStorage.setItem('nk',JSON.stringify(d)); showApp(); initMsgs();
-    } else document.getElementById('errMsg').textContent=d.message, document.getElementById('errMsg').classList.remove('hidden');
+    const username = document.getElementById('uIn').value.trim().toLowerCase();
+    const password = document.getElementById('pIn').value.trim();
+    
+    if(!username || !password){ document.getElementById('errMsg').innerText="يرجى ملء الحقول"; return;}
+
+    try {
+        const r=await fetch('/api/login',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({username:username, password:password})
+        });
+        const d=await r.json();
+        if(d.status==='success'){
+            currentUser=d; 
+            sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
+            showApp(); initMsgs();
+        } else {
+            document.getElementById('errMsg').textContent=d.message || "فشل الدخول";
+        }
+    } catch(err) {
+        document.getElementById('errMsg').textContent="تأكد من اتصالك بالإنترنت أو المحاولة لاحقاً.";
+    }
 };
 
 // دالة التسجيل وإنشاء الحساب في الفايربيز مباشرة
 document.getElementById('registerBtn').onclick=async()=>{
     const u=document.getElementById('uIn').value.trim().toLowerCase();
     const p=document.getElementById('pIn').value.trim();
+    
     if(!u || !p){ alert("يرجى إدخال اسم مستخدم وكلمة مرور"); return;}
     
-    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,display_name:"طالب"})});
-    const d=await r.json();
-    if(d.status==='success'){
-        currentUser={status:'success', name:"طالب", username:u};
-        sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
-        showApp(); initMsgs();
-    } else {
-        document.getElementById('errMsg').textContent="فشل التسجيل: " + d.message;
-        document.getElementById('errMsg').classList.remove('hidden');
+    try {
+        // التأكد من أن الشكل المطلوب للبايثون كامل
+        const payload = { username: u, password: p, display_name: "طالب" };
+        const r=await fetch('/api/register',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(payload)
+        });
+        const d=await r.json();
+        
+        if(d.status==='success'){
+            currentUser={status:'success', name:"طالب", username:u};
+            sessionStorage.setItem('nk',JSON.stringify(currentUser)); 
+            showApp(); initMsgs();
+        } else {
+            document.getElementById('errMsg').textContent="فشل التسجيل: " + (d.message || "حدث خطأ غير متوقع");
+        }
+    } catch(err) {
+        document.getElementById('errMsg').textContent="حدث خطأ أثناء الاتصال بالخادم. تأكد من نجاح النشر الأخير.";
     }
 };
 
@@ -84,7 +116,6 @@ function showApp(){
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appScreen').classList.remove('hidden');
     document.getElementById('uName').innerText=currentUser.name;
-    // إظهار زر الترقية فقط للحسابات العادية
     if(!currentUser.isAdmin) document.getElementById('adminPromoteBtn').classList.remove('hidden');
 }
 
@@ -95,22 +126,21 @@ async function initMsgs(){
             chatHistory=await r.json();
             chatHistory.forEach(m=>appendBubble(m.content,m.role));
         }
-    }catch(e){}
+    }catch(e){ console.error("Error loading history:", e); }
 }
 
 // تنفيذ عملية الترقية
 document.getElementById('adminPromoteBtn').onclick=async()=>{
     document.getElementById('adminPromoteBtn').disabled=true;
-    document.getElementById('adminPromoteBtn').innerText="جاري الطلب...";
+    document.getElementById('adminPromoteBtn').innerText="جاري إرسال طلب الصلاحيات...";
     
-    const r=await fetch('/api/promote-to-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,history:[]})});
-    const d=await r.json();
+    try {
+        const r=await fetch('/api/promote-to-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,history:[]})});
+        const d=await r.json();
+        alert(d.message); 
+    } catch(e) { alert("فشل الاتصال بطلب الترقية"); }
     
-    if(d.status==='success'){
-        alert(d.message); location.reload();
-    } else {
-        alert(d.message); location.reload();
-    }
+    location.reload();
 };
 
 document.getElementById('sendForm').onsubmit=async(e)=>{
@@ -119,10 +149,14 @@ document.getElementById('sendForm').onsubmit=async(e)=>{
     const txt=inp.value.trim(); if(!txt)return;
     appendBubble(txt,'user'); inp.value=''; btn.disabled=true; btn.innerText='جاري...';
     
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,prompt:txt,history:chatHistory})});
-    const d=await r.json();
-    appendBubble(d.reply,'assistant');
-    chatHistory.push({role:'user',content:txt},{role:'assistant',content:d.reply});
+    try {
+        const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser.username,prompt:txt,history:chatHistory})});
+        const d=await r.json();
+        appendBubble(d.reply,'assistant');
+        chatHistory.push({role:'user',content:txt},{role:'assistant',content:d.reply});
+    } catch(err) {
+        appendBubble("⚠️ عذراً، حدث خطأ في الاتصال بالمساعد الذكي.", 'assistant');
+    }
     btn.disabled=false; btn.innerText='إرسال';
 };
 
