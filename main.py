@@ -1,7 +1,9 @@
 # main.py
 import os
+import sys
 import glob
 import time
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -11,7 +13,11 @@ from google.genai import types
 import firebase_admin
 from firebase_admin import credentials, db
 
-# === 1. تهيئة فايربيز الأمنية ===
+# === 1. تصحيح مسار القوالب ليشتغل على فيرسل 100% ===
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+# === 2. تهيئة فايربيز بأمان تام ===
 def init_firebase():
     try:
         if not firebase_admin._apps:
@@ -28,12 +34,14 @@ def init_firebase():
             firebase_admin.initialize_app(credentials.Certificate(cred_json), {
                 'databaseURL': os.getenv("FIREBASE_DATABASE_URL")
             })
-    except Exception as e: print(f"[Firebase Error] {e}")
+        return True
+    except Exception as e:
+        print(f"[Firebase Init Warning] {e}")
+        return False
 
 init_firebase()
 
 app = FastAPI(title="Smart Nursing Assistant")
-templates = Jinja2Templates(directory=".")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip().lower()
 
 class UserCredential(BaseModel):
@@ -46,10 +54,13 @@ class ChatPayload(BaseModel):
     prompt: str
     history: list = []
 
-# === دوال فايربيز الآمنة ===
+# === دوال فايربيز (معالجة أخطاء دقيقة) ===
 def get_users_db():
-    ref = db.reference('users')
-    return ref.get() or {}
+    try:
+        ref = db.reference('users')
+        data = ref.get()
+        return data if isinstance(data, dict) else {}
+    except: return {}
 
 def save_msg(username: str, role: str, content: str):
     try:
@@ -71,28 +82,29 @@ GEMINI_CTX, GEMINI_KEYS = [], []
 try:
     keys = [os.getenv(f"GEMINI_API_KEY_{i}") for i in range(1, 6)]
     keys = [k for k in keys if k]
-    pdfs = glob.glob("./*.pdf")
-    if not pdfs: raise Exception("No PDFs in repo root.")
+    pdfs = glob.glob(str(BASE_DIR / "*.pdf"))
+    if not pdfs: raise FileNotFoundError("No PDF books found in repository root.")
     client = genai.Client(api_key=keys[0])
     GEMINI_CTX = [client.files.upload(file=f) for f in pdfs]
     GEMINI_KEYS = keys
-except Exception as e: print(f"[Gemini Init] {e}")
+except Exception as e: 
+    print(f"[Gemini Init Warning] {e}")
 
 # === واجهات الـ API ===
 @app.post("/api/login")
 async def login(d: UserCredential):
-    db = get_users_db()
+    db_data = get_users_db()
     u = d.username.strip().lower()
-    if u in db and d.password == db[u].get("password"):
-        return {"status": "success", "name": db[u].get("name"), "username": u}
+    if u in db_data and d.password == db_data[u].get("password"):
+        return {"status": "success", "name": db_data[u].get("name"), "username": u}
     return {"status": "error", "message": "بيانات خاطئة"}
 
 @app.post("/api/admin/users/add")
 async def add_user(d: UserCredential):
-    db = get_users_db()
+    db_data = get_users_db()
     u = d.username.strip().lower()
     if u == ADMIN_USERNAME: return {"status": "error", "message": "ممنوع تعديل حساب الأدمن"}
-    if u in db: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
+    if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     try:
         db.reference(f'users/{u}').set({"password": d.password, "name": d.display_name})
         return {"status": "success"}
@@ -128,4 +140,8 @@ async def ask_ai(req: ChatPayload):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    # حل نهائي لمشكلة Internal Server Error في فيرسل
+    try:
+        return templates.TemplateResponse("index.html", {"request": request})
+    except Exception as e:
+        return HTMLResponse(content=f"<h1>Error loading template: {e}</h1>", status_code=500)
