@@ -39,7 +39,6 @@ def init_firebase():
 init_firebase()
 
 app = FastAPI(title="Smart Nursing Assistant")
-ADMIN_USERNAME_TARGET = os.getenv("ADMIN_USERNAME", "").strip().lower()
 
 class UserCredential(BaseModel):
     username: str
@@ -73,19 +72,6 @@ def load_history(username: str):
     except: pass
     return []
 
-def ensure_admin_in_db():
-    db_data = get_users_db()
-    if ADMIN_USERNAME_TARGET and ADMIN_USERNAME_TARGET not in db_data:
-        try:
-            db.reference(f'users/{ADMIN_USERNAME_TARGET}').set({
-                "password": "default_pass", 
-                "name": "القائد",
-                "role": "admin"
-            })
-        except Exception as e: print(f"[System] Failed to create admin: {e}")
-
-ensure_admin_in_db()
-
 GEMINI_CTX, GEMINI_KEYS = [], []
 try:
     keys = [os.getenv(f"GEMINI_API_KEY_{i}") for i in range(1, 6)]
@@ -108,24 +94,24 @@ async def login(d: UserCredential):
         
     return {"status": "error", "message": "بيانات خاطئة أو غير موجودة"}
 
-# ✅ بوابة تسجيل الحساب الجديدة (تمت إضافتها لتجنب رسالة undefined)
-@app.post("/api/register")
-async def register_user(user: UserCredential):
-    db_data = get_users_db()
-    u = user.username.strip().lower()
-    if u in db_data:
-        return {"status": "error", "message": "اسم المستخدم هذا موجود بالفعل"}
+# ✅ بوابة ترقية الحساب للأدمن
+@app.post("/api/promote-to-admin")
+async def promote_to_admin(req: ChatPayload):
     try:
-        db.reference(f'users/{u}').set({"password": user.password, "name": user.display_name or "طالب"})
-        return {"status": "success"}
+        u = req.username.strip().lower()
+        db_data = get_users_db()
+        if u in db_data:
+            # إضافة صلاحية الأدمن في نفس الحساب
+            db.reference(f'users/{u}').update({"role": "admin"})
+            return {"status": "success", "message": "تم الترقية بنجاح! أعد تسجيل الدخول."}
+        return {"status": "error", "message": "لم يتم العثور على الحساب."}
     except:
-        return {"status": "error", "message": "حدث خطأ أثناء الاتصال بقاعدة البيانات"}
+        return {"status": "error", "message": "حدث خطأ أثناء الترقية"}
 
 @app.post("/api/admin/users/add")
 async def add_user(d: UserCredential):
     db_data = get_users_db()
     u = d.username.strip().lower()
-    if u == ADMIN_USERNAME_TARGET: return {"status": "error", "message": "ممنوع تعديل الأدمن"}
     if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود"}
     try:
         db.reference(f'users/{u}').set({"password": d.password, "name": d.display_name})
@@ -151,7 +137,7 @@ async def ask_ai(req: ChatPayload):
                 ctx.append(f"{m['role']}: {m['content']}")
             ctx.append(f"Question: {req.prompt}")
             
-            resp = cl.models.generate_content(model='gemini-3.5-flash', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
+            resp = cl.models.generate_content(model='gemini-2.0-flash-exp', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
             ans = resp.text
             save_msg(req.username, "user", req.prompt)
             save_msg(req.username, "assistant", ans)
