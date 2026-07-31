@@ -100,6 +100,21 @@
     </div>
 </div>
 
+<!-- نافذة تغيير كلمة المرور -->
+<div id="changePassOverlay" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center z-[60] backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl m-4 text-right animate-fade-in-up">
+        <h3 class="text-xl font-bold text-gray-800 mb-4">تغيير كلمة المرور لـ <span id="targetUsername" class="text-indigo-600"></span></h3>
+        <form id="changePassForm">
+            <input type="password" id="editPassInput" placeholder="كلمة المرور الجديدة" required class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 outline-none rtl:text-right">
+            <div class="flex gap-3">
+                <button type="submit" class="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-bold shadow transition">✅ تحديث</button>
+                <button type="button" onclick="closeChangePassModal()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-bold shadow transition">إلغاء</button>
+            </div>
+        </form>
+        <p id="passStatus" class="mt-3 text-sm font-bold hidden"></p>
+    </div>
+</div>
+
 <script>
 let currentUser=null, chatHistory=[];
 if(sessionStorage.getItem('nk')){ try { currentUser=JSON.parse(sessionStorage.getItem('nk')); showApp(); initMsgs(); } catch(e) {} }
@@ -185,6 +200,41 @@ document.getElementById('addUserForm').onsubmit = async (e) => {
     } catch(err) { msgEl.innerText = "فشل الاتصال بالخادم."; msgEl.className = "mt-4 text-sm font-bold block text-red-600"; }
 };
 
+// ✅ تفعيل نافذة تغيير كلمة المرور
+window.openChangePassModal = (uname) => {
+    document.getElementById('targetUsername').innerText = uname;
+    document.getElementById('editPassInput').value = '';
+    document.getElementById('changePassOverlay').classList.remove('hidden');
+};
+
+document.getElementById('changePassForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const uname = document.getElementById('targetUsername').innerText;
+    const npass = document.getElementById('editPassInput').value;
+    const statusEl = document.getElementById('passStatus');
+    statusEl.innerText = "جاري التحديث..."; statusEl.classList.remove('hidden', 'text-red-600', 'text-green-600'); statusEl.classList.add('text-blue-600');
+
+    try {
+        const r = await fetch('/api/admin/users/update-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uname, new_password: npass })
+        });
+        const d = await r.json();
+        if(d.status === 'success') {
+            statusEl.innerText = "✅ تم تحديث كلمة المرور بنجاح!"; statusEl.classList.add('text-green-600');
+            setTimeout(() => closeChangePassModal(), 1500);
+        } else {
+            statusEl.innerText = "❌ " + d.message; statusEl.classList.add('text-red-600');
+        }
+    } catch(err) { statusEl.innerText = "فشل الاتصال."; statusEl.classList.add('text-red-600'); }
+};
+
+function closeChangePassModal() {
+    document.getElementById('changePassOverlay').classList.add('hidden');
+    document.getElementById('passStatus').classList.add('hidden');
+}
+
 async function loadUsersList() {
     const container = document.getElementById('usersTableContainer');
     container.innerHTML = "<div class='flex justify-center'><i class='fas fa-spinner fa-spin text-2xl'></i></div>";
@@ -201,7 +251,9 @@ async function loadUsersList() {
                 <td class='p-4 font-medium text-gray-700'>${u.name} <br><span class="text-xs text-gray-500 font-normal">@${u.username}</span></td>
                 <td class='p-4'>${u.is_admin ? '<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">✓ نعم</span>' : ''}</td>
                 <td class='p-4'>
-                    ${!u.is_admin ? `<button onclick="deleteUser('${u.username}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 shadow-sm transition"><i class="fas fa-trash-alt ml-1"></i> حذف</button>` : ''}
+                    ${!u.is_admin ? `
+                    <button onclick="openChangePassModal('${u.username}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 shadow-sm transition ml-2"><i class="fas fa-key ml-1"></i> تغيير كلمة السر</button>
+                    <button onclick="deleteUser('${u.username}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 shadow-sm transition"><i class="fas fa-trash-alt ml-1"></i> حذف</button>` : ''}
                 </td>
             </tr>`;
         });
@@ -210,11 +262,9 @@ async function loadUsersList() {
     } catch(e) { container.innerHTML = "<p class='text-red-500 text-center'>فشل جلب القائمة.</p>"; }
 }
 
-// ✅ تم تحديث منطق الحذف ليتوافق مع الكلاس الجديد
 window.deleteUser = async (uname) => {
     if(confirm(`هل أنت متأكد من حذف "${uname}" نهائياً؟`)) {
         try {
-            // نرسل فقط username كما هو مطلوب الآن
             const r = await fetch('/api/admin/users/delete', {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
