@@ -93,17 +93,20 @@ async def login(d: UserAuth):
     pwd = d.password.strip()
     db_data = get_users_db()
     
-    # ✅ التحقق المباشر بدون أي تحويلات قد تفقد البيانات
-    if uname in db_data and pwd == db_data[uname].get("password"):
-        return {"status": "success", "name": db_data[uname].get("name"), "username": uname}
+    # ✅ تصحيح: البحث عن صلاحية الأدمن وإرسالها للمتصفح
+    if uname in db_data:
+        user_role = db_data[uname].get("role", "")
+        is_admin = (user_role == "admin")
         
+        if pwd == db_data[uname].get("password"):
+            return {"status": "success", "name": db_data[uname].get("name"), "username": uname, "isAdmin": is_admin}
+            
     return {"status": "error", "message": "الحساب غير موجود أو كلمة المرور خاطئة"}
 
 @app.post("/api/register")
 async def register_user(user: UserReg):
     db_data = get_users_db()
     u = user.username.strip().lower()
-    
     if u in db_data: 
         return {"status": "error", "message": "اسم المستخدم هذا مسجل بالفعل"}
     
@@ -154,7 +157,7 @@ async def ask_ai(req: ChatPayload):
                 ctx.append(f"{m['role']}: {m['content']}")
             ctx.append(f"Question: {req.prompt}")
             
-            resp = cl.models.generate_content(model='models/gemini-2.5-flash', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
+            resp = cl.models.generate_content(model='gemini-2.0-flash-exp', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
             ans = resp.text
             save_msg(req.username, "user", req.prompt)
             save_msg(req.username, "assistant", ans)
