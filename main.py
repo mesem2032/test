@@ -49,6 +49,11 @@ class UserReg(BaseModel):
     password: str = Field(..., min_length=5)
     display_name: str = Field(default="طالب")
 
+class AdminAddUser(BaseModel):
+    username: str
+    password: str
+    display_name: str
+
 class ChatPayload(BaseModel):
     username: str
     prompt: str
@@ -128,20 +133,18 @@ async def promote_to_admin(req: ChatPayload):
         return {"status": "error", "message": f"حدث خطأ أثناء الترقية: {str(e)}"}
 
 @app.post("/api/admin/users/add")
-async def add_user(d: UserAuth):
+async def add_user(d: AdminAddUser):
     db_data = get_users_db()
     u = d.username.strip().lower()
     if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     try:
-        # ✅ تم التعديل: سيتم استخدام كلمة مرور عشوائية أو الطلب منك إدخالها لاحقاً
-        # ولتسهيل الأمر سنجعل البايثون يقرأ اسم المستخدم فقط ويستطيع الأدمن إضافة الباقي من الفايربيز مباشرة
-        # لكن لتبسيط الواجهة الحالية:
+        # ✅ تم التصحيح: نستخدم الاسم الظاهر الذي كتبه الأدمن بدلاً من "نضيف"
         db.reference(f'users/{u}').set({
             "password": d.password, 
-            "name": d.password + " (الافتراضي)" # لضمان عدم وجود حقل فارغ حالياً
+            "name": d.display_name or "جديد"
         })
         return {"status": "success"}
-    except Exception as e: return {"status": "error", "message": f"حدث خطأ أثناء الإضافة: {str(e)}"}
+    except Exception as e: return {"status": "error", "message": f"خطأ أثناء الإضافة: {str(e)}"}
 
 @app.get("/api/admin/users/list")
 async def get_admin_users_list():
@@ -161,10 +164,10 @@ async def delete_user(req: ChatPayload):
         u = req.username.strip().lower()
         db.ref().delete(f'users/{u}')
         db.ref().delete(f'chats/{u}')
-        return {"status": "success", "message": "تم حذف الحساب بنجاح"}
+        return {"status": "success", "message": "تم حذف الحساب ومحادثاته"}
     except Exception as e:
-        # ✅ تم التصحيح: الآن سترسل اسم المستخدم الذي فشل الحذف بدلاً من undefined
-        return {"status": "error", "message": f"فشل حذف الحساب '{req.username}'"}
+        # ✅ تم التصحيح: سنُعيد رسالة خطأ حقيقية هنا
+        return {"status": "error", "message": f"فشل حذف الحساب '{req.username}' بسبب خطأ تقني"}
 
 @app.get("/api/messages/{username}")
 async def get_msgs(username: str):
@@ -185,7 +188,7 @@ async def ask_ai(req: ChatPayload):
                 ctx.append(f"{m['role']}: {m['content']}")
             ctx.append(f"Question: {req.prompt}")
             
-            resp = cl.models.generate_content(model='gemini-2.0-flash-exp', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
+            resp = cl.models.generate_content(model='gemini-2.0-flash', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
             ans = resp.text
             save_msg(req.username, "user", req.prompt)
             save_msg(req.username, "assistant", ans)
