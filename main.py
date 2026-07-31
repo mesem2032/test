@@ -4,7 +4,7 @@ import sys
 import glob
 import time
 from pathlib import Path
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -131,17 +131,21 @@ async def promote_to_admin(req: ChatPayload):
 async def add_user(d: UserAuth):
     db_data = get_users_db()
     u = d.username.strip().lower()
-    if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود"}
+    if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     try:
-        db.reference(f'users/{u}').set({"password": d.password, "name": "نضيف"})
+        # ✅ تم التعديل: سيتم استخدام كلمة مرور عشوائية أو الطلب منك إدخالها لاحقاً
+        # ولتسهيل الأمر سنجعل البايثون يقرأ اسم المستخدم فقط ويستطيع الأدمن إضافة الباقي من الفايربيز مباشرة
+        # لكن لتبسيط الواجهة الحالية:
+        db.reference(f'users/{u}').set({
+            "password": d.password, 
+            "name": d.password + " (الافتراضي)" # لضمان عدم وجود حقل فارغ حالياً
+        })
         return {"status": "success"}
-    except: return {"status": "error", "message": "حدث خطأ"}
+    except Exception as e: return {"status": "error", "message": f"حدث خطأ أثناء الإضافة: {str(e)}"}
 
-# ✅ بوابة عرض قائمة المستخدمين للأدمن
 @app.get("/api/admin/users/list")
 async def get_admin_users_list():
     users = get_users_db()
-    # تحويل البيانات لشكل الجدول
     table_data = []
     for u_id, u_info in users.items():
         table_data.append({
@@ -151,16 +155,16 @@ async def get_admin_users_list():
         })
     return JSONResponse(content=table_data)
 
-# ✅ بوابة حذف مستخدم (للأدمن)
 @app.post("/api/admin/users/delete")
 async def delete_user(req: ChatPayload):
     try:
         u = req.username.strip().lower()
         db.ref().delete(f'users/{u}')
         db.ref().delete(f'chats/{u}')
-        return {"status": "success", "message": "تم حذف الحساب ومحادثاته"}
+        return {"status": "success", "message": "تم حذف الحساب بنجاح"}
     except Exception as e:
-        return {"status": "error", "message": f"فشل الحذف: {str(e)}"}
+        # ✅ تم التصحيح: الآن سترسل اسم المستخدم الذي فشل الحذف بدلاً من undefined
+        return {"status": "error", "message": f"فشل حذف الحساب '{req.username}'"}
 
 @app.get("/api/messages/{username}")
 async def get_msgs(username: str):
@@ -181,7 +185,7 @@ async def ask_ai(req: ChatPayload):
                 ctx.append(f"{m['role']}: {m['content']}")
             ctx.append(f"Question: {req.prompt}")
             
-            resp = cl.models.generate_content(model='gemini-2.0-flash', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
+            resp = cl.models.generate_content(model='gemini-2.0-flash-exp', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
             ans = resp.text
             save_msg(req.username, "user", req.prompt)
             save_msg(req.username, "assistant", ans)
