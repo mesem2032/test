@@ -247,13 +247,13 @@ async function loadUsersList() {
         html += "<tbody>";
         
         users.forEach(u => {
+            // ✅ تم تعديل هذا السطر لإظهار الأزرار للجميع بما فيهم الأدمن (تمت إزالة شرط u.is_admin)
             html += `<tr class="border-b hover:bg-gray-50 transition">
                 <td class='p-4 font-medium text-gray-700'>${u.name} <br><span class="text-xs text-gray-500 font-normal">@${u.username}</span></td>
                 <td class='p-4'>${u.is_admin ? '<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">✓ نعم</span>' : ''}</td>
                 <td class='p-4'>
-                    ${!u.is_admin ? `
                     <button onclick="openChangePassModal('${u.username}')" class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 shadow-sm transition ml-2"><i class="fas fa-key ml-1"></i> تغيير كلمة السر</button>
-                    <button onclick="deleteUser('${u.username}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 shadow-sm transition"><i class="fas fa-trash-alt ml-1"></i> حذف</button>` : ''}
+                    <button onclick="deleteUser('${u.username}')" class="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 shadow-sm transition"><i class="fas fa-trash-alt ml-1"></i> حذف</button>
                 </td>
             </tr>`;
         });
