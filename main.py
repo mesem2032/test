@@ -49,14 +49,17 @@ class AdminAddUser(BaseModel):
     password: str
     display_name: str
 
+class UserDeleteRequest(BaseModel):
+    username: str
+
+class UserPasswordUpdate(BaseModel):
+    username: str
+    new_password: str
+
 class ChatPayload(BaseModel):
     username: str
     prompt: str
     history: list = []
-
-# ✅ نموذج جديد للحذف لا يتطلب أي شيء غير اسم المستخدم
-class UserDeleteRequest(BaseModel):
-    username: str
 
 def get_users_db():
     try:
@@ -143,7 +146,18 @@ async def get_admin_users_list():
         })
     return JSONResponse(content=table_data)
 
-# ✅ تصحيح الحذف باستخدام الكلاس الجديد
+# ✅ دالة تغيير كلمة المرور
+@app.post("/api/admin/users/update-password")
+async def update_password(req: UserPasswordUpdate):
+    try:
+        ref = db.reference(f'users/{req.username}')
+        # استخدام update للحفاظ على بقية البيانات (مثل الاسم)
+        ref.update({"password": req.new_password})
+        return {"status": "success", "message": "تم تحديث كلمة المرور بنجاح"}
+    except Exception as e:
+        print(f"[Update Pass Error] {str(e)}")
+        return {"status": "error", "message": f"حدث خطأ أثناء التحديث: {str(e)}"}
+
 @app.post("/api/admin/users/delete")
 async def delete_user(req: UserDeleteRequest):
     try:
@@ -154,7 +168,6 @@ async def delete_user(req: UserDeleteRequest):
         chat_ref.delete()
         return {"status": "success", "message": "تم حذف الحساب بنجاح"}
     except Exception as e:
-        print(f"[Delete Error] {str(e)}")
         return {"status": "error", "message": f"فشل الحذف تقنياً: {str(e)}"}
 
 @app.get("/api/messages/{username}")
