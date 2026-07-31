@@ -57,10 +57,10 @@
         </div>
 
         <div id="addTab" class="tab-content">
+            <p class="text-xs text-red-500 mb-3">* ملاحظة: يمكنك تغيير كلمة المرور والاسم الظاهر بعد الإنشاء عبر تعديل الحساب في الفايربيز.</p>
             <form id="addUserForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><label class="block mb-1 font-bold text-sm">اسم المستخدم</label><input type="text" id="newUname" required class="w-full p-2 border rounded"></div>
-                <div><label class="block mb-1 font-bold text-sm">كلمة المرور</label><input type="text" id="newPword" required class="w-full p-2 border rounded"></div>
-                <div><label class="block mb-1 font-bold text-sm">الاسم الظاهر</label><input type="text" id="newName" required class="w-full p-2 border rounded"></div>
+                <div><label class="block mb-1 font-bold text-sm">كلمة المرور الأولية</label><input type="text" id="newPword" required class="w-full p-2 border rounded"></div>
                 <div class="flex items-end"><button type="submit" class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">✅ حفظ</button></div>
             </form>
             <p id="adminMsg" class="mt-3 text-sm hidden"></p>
@@ -121,7 +121,6 @@ function showApp(){
     }
 }
 
-// ⚙️ وظائف الإدارة
 async function openAdminPanel() {
     document.getElementById('adminOverlay').classList.remove('hidden');
     loadUsersList();
@@ -138,7 +137,6 @@ document.getElementById('addUserForm').onsubmit = async (e) => {
     e.preventDefault();
     const u = document.getElementById('newUname').value.trim().toLowerCase();
     const p = document.getElementById('newPword').value;
-    const n = document.getElementById('newName').value.trim();
     const msgEl = document.getElementById('adminMsg');
     msgEl.innerText = "جاري..."; msgEl.classList.remove('hidden', 'text-red-600', 'text-green-600', 'text-blue-600'); msgEl.classList.add('text-blue-600');
 
@@ -150,13 +148,12 @@ document.getElementById('addUserForm').onsubmit = async (e) => {
         });
         const d = await r.json();
         if(d.status === 'success') {
-            msgEl.innerText = "✅ تمت الإضافة!"; msgEl.classList.add('text-green-600');
+            msgEl.innerText = "✅ تمت الإضافة بنجاح!"; msgEl.classList.add('text-green-600');
             e.target.reset(); loadUsersList();
         } else { msgEl.innerText = "❌ " + d.message; msgEl.classList.add('text-red-600'); }
-    } catch(err) { msgEl.innerText = "فشل الاتصال."; msgEl.classList.add('text-red-600'); }
+    } catch(err) { msgEl.innerText = "فشل الاتصال بالخادم."; msgEl.classList.add('text-red-600'); }
 };
 
-// ✅ دالة جلب وعرض القائمة الحقيقية
 async function loadUsersList() {
     const container = document.getElementById('usersTableContainer');
     container.innerHTML = "جاري الجلب...";
@@ -191,9 +188,9 @@ window.deleteUser = async (uname) => {
                 body: JSON.stringify({username: uname, history:[]})
             });
             const d = await r.json();
-            if(d.status === 'success') { loadUsersList(); alert("تم الحذف!"); }
-            else { alert("فشل: " + d.message); }
-        } catch(e) { alert("خطأ في الاتصال."); }
+            if(d.status === 'success') { loadUsersList(); alert("تم الحذف بنجاح!"); }
+            else { alert("فشل: " + d.message); } // ⚠️ الآن ستظهر الرسالة الحقيقية بدلاً من undefined
+        } catch(e) { alert("فشل الاتصال بالخادم."); }
     }
 };
 
