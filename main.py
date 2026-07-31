@@ -44,11 +44,6 @@ class UserAuth(BaseModel):
     username: str
     password: str
 
-class UserReg(BaseModel):
-    username: str = Field(..., min_length=3, max_length=30)
-    password: str = Field(..., min_length=5)
-    display_name: str = Field(default="طالب")
-
 class AdminAddUser(BaseModel):
     username: str
     password: str
@@ -107,19 +102,6 @@ async def login(d: UserAuth):
             
     return {"status": "error", "message": "الحساب غير موجود أو كلمة المرور خاطئة"}
 
-@app.post("/api/register")
-async def register_user(user: UserReg):
-    db_data = get_users_db()
-    u = user.username.strip().lower()
-    if u in db_data: 
-        return {"status": "error", "message": "اسم المستخدم هذا مسجل بالفعل"}
-    
-    try:
-        db.reference(f'users/{u}').set({"password": user.password, "name": user.display_name})
-        return {"status": "success", "message": "تم إنشاء الحساب بنجاح"}
-    except Exception as e:
-        return {"status": "error", "message": f"فشل الاتصال بقاعدة البيانات: {str(e)}"}
-
 @app.post("/api/promote-to-admin")
 async def promote_to_admin(req: ChatPayload):
     try:
@@ -138,7 +120,7 @@ async def add_user(d: AdminAddUser):
     u = d.username.strip().lower()
     if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     try:
-        # ✅ تم التصحيح: نستخدم الاسم الظاهر الذي كتبه الأدمن بدلاً من "نضيف"
+        # ✅ حفظ الاسم الظاهر بشكل صحيح
         db.reference(f'users/{u}').set({
             "password": d.password, 
             "name": d.display_name or "جديد"
@@ -166,8 +148,8 @@ async def delete_user(req: ChatPayload):
         db.ref().delete(f'chats/{u}')
         return {"status": "success", "message": "تم حذف الحساب ومحادثاته"}
     except Exception as e:
-        # ✅ تم التصحيح: سنُعيد رسالة خطأ حقيقية هنا
-        return {"status": "error", "message": f"فشل حذف الحساب '{req.username}' بسبب خطأ تقني"}
+        # ✅ إرجاع رسالة خطأ حقيقية بدلاً من تجاهلها
+        return {"status": "error", "message": f"فشل حذف الحساب: {str(e)}"}
 
 @app.get("/api/messages/{username}")
 async def get_msgs(username: str):
