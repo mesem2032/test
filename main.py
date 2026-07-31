@@ -93,7 +93,6 @@ async def login(d: UserAuth):
     pwd = d.password.strip()
     db_data = get_users_db()
     
-    # ✅ تصحيح: البحث عن صلاحية الأدمن وإرسالها للمتصفح
     if uname in db_data:
         user_role = db_data[uname].get("role", "")
         is_admin = (user_role == "admin")
@@ -138,6 +137,31 @@ async def add_user(d: UserAuth):
         return {"status": "success"}
     except: return {"status": "error", "message": "حدث خطأ"}
 
+# ✅ بوابة عرض قائمة المستخدمين للأدمن
+@app.get("/api/admin/users/list")
+async def get_admin_users_list():
+    users = get_users_db()
+    # تحويل البيانات لشكل الجدول
+    table_data = []
+    for u_id, u_info in users.items():
+        table_data.append({
+            "username": u_id,
+            "name": u_info.get("name", ""),
+            "is_admin": u_info.get("role", "") == "admin"
+        })
+    return JSONResponse(content=table_data)
+
+# ✅ بوابة حذف مستخدم (للأدمن)
+@app.post("/api/admin/users/delete")
+async def delete_user(req: ChatPayload):
+    try:
+        u = req.username.strip().lower()
+        db.ref().delete(f'users/{u}')
+        db.ref().delete(f'chats/{u}')
+        return {"status": "success", "message": "تم حذف الحساب ومحادثاته"}
+    except Exception as e:
+        return {"status": "error", "message": f"فشل الحذف: {str(e)}"}
+
 @app.get("/api/messages/{username}")
 async def get_msgs(username: str):
     return JSONResponse(content=load_history(username))
@@ -157,7 +181,7 @@ async def ask_ai(req: ChatPayload):
                 ctx.append(f"{m['role']}: {m['content']}")
             ctx.append(f"Question: {req.prompt}")
             
-            resp = cl.models.generate_content(model='gemini-2.0-flash-exp', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
+            resp = cl.models.generate_content(model='gemini-2.0-flash', contents=ctx, config=types.GenerateContentConfig(system_instruction=system_instr, temperature=0.2))
             ans = resp.text
             save_msg(req.username, "user", req.prompt)
             save_msg(req.username, "assistant", ans)
