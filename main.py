@@ -54,6 +54,10 @@ class ChatPayload(BaseModel):
     prompt: str
     history: list = []
 
+# ✅ نموذج جديد للحذف لا يتطلب أي شيء غير اسم المستخدم
+class UserDeleteRequest(BaseModel):
+    username: str
+
 def get_users_db():
     try:
         ref = db.reference('users')
@@ -139,23 +143,18 @@ async def get_admin_users_list():
         })
     return JSONResponse(content=table_data)
 
-# ✅ التصحيح النهائي للحذف
+# ✅ تصحيح الحذف باستخدام الكلاس الجديد
 @app.post("/api/admin/users/delete")
-async def delete_user(req: ChatPayload):
+async def delete_user(req: UserDeleteRequest):
     try:
         u = req.username.strip().lower()
-        
-        # استخدام Reference مباشر ومسحه
         user_ref = db.reference(f'users/{u}')
         user_ref.delete()
-        
         chat_ref = db.reference(f'chats/{u}')
         chat_ref.delete()
-        
         return {"status": "success", "message": "تم حذف الحساب بنجاح"}
     except Exception as e:
-        # طباعة الخطأ في السيرفر لمعرفة السبب بدقة
-        print(f"[Delete Error] {str(e)}") 
+        print(f"[Delete Error] {str(e)}")
         return {"status": "error", "message": f"فشل الحذف تقنياً: {str(e)}"}
 
 @app.get("/api/messages/{username}")
