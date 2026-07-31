@@ -120,7 +120,6 @@ async def add_user(d: AdminAddUser):
     u = d.username.strip().lower()
     if u in db_data: return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     try:
-        # ✅ حفظ الاسم الظاهر بشكل صحيح
         db.reference(f'users/{u}').set({
             "password": d.password, 
             "name": d.display_name or "جديد"
@@ -140,16 +139,24 @@ async def get_admin_users_list():
         })
     return JSONResponse(content=table_data)
 
+# ✅ التصحيح النهائي للحذف
 @app.post("/api/admin/users/delete")
 async def delete_user(req: ChatPayload):
     try:
         u = req.username.strip().lower()
-        db.ref().delete(f'users/{u}')
-        db.ref().delete(f'chats/{u}')
-        return {"status": "success", "message": "تم حذف الحساب ومحادثاته"}
+        
+        # استخدام Reference مباشر ومسحه
+        user_ref = db.reference(f'users/{u}')
+        user_ref.delete()
+        
+        chat_ref = db.reference(f'chats/{u}')
+        chat_ref.delete()
+        
+        return {"status": "success", "message": "تم حذف الحساب بنجاح"}
     except Exception as e:
-        # ✅ إرجاع رسالة خطأ حقيقية بدلاً من تجاهلها
-        return {"status": "error", "message": f"فشل حذف الحساب: {str(e)}"}
+        # طباعة الخطأ في السيرفر لمعرفة السبب بدقة
+        print(f"[Delete Error] {str(e)}") 
+        return {"status": "error", "message": f"فشل الحذف تقنياً: {str(e)}"}
 
 @app.get("/api/messages/{username}")
 async def get_msgs(username: str):
