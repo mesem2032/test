@@ -1,10 +1,15 @@
 {
-  "builds": [{ "src": "main.py", "use": "@vercel/python" }],
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "50mb" }
+    }
+  ],
   "routes": [
-    { "src": "/static/(.*)", "dest": "/static/$1" },
     { "src": "/(.*)", "dest": "/main.py" }
   ],
   "env": {
-    "VERCEL_FORCE_PYTHON_BUILD_CACHE": "false"
+    "PYTHON_VERSION": "3.12"
   }
 }

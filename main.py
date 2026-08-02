@@ -1,7 +1,6 @@
 # main.py
 import os
 import sys
-import glob
 import time
 import math
 import re
@@ -36,19 +35,30 @@ def book_title(book_id):
 def init_firebase():
     try:
         if not firebase_admin._apps:
+            # المفتاح الخاص يُخزَّن عادة كنص متعدد الأسطر، لكن Vercel قد يحوّله لسطر
+            # واحد به \n حرفية — نتعامل مع الحالتين معاً
+            pk = (os.getenv("FIREBASE_PRIVATE_KEY") or "").strip()
+            if pk.startswith('"') and pk.endswith('"'):
+                pk = pk[1:-1].replace('\\"', '"')
+            if "\\n" in pk and "\n" not in pk:
+                pk = pk.replace("\\n", "\n")
             cred_json = {
                 "type": os.getenv("FIREBASE_TYPE"),
                 "project_id": os.getenv("FIREBASE_PROJECT_ID"),
                 "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-                "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
+                "private_key": pk,
                 "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
                 "client_id": os.getenv("FIREBASE_CLIENT_ID"),
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
             }
-            firebase_admin.initialize_app(credentials.Certificate(cred_json), {
-                'databaseURL': os.getenv("FIREBASE_DATABASE_URL")
-            })
+            if not cred_json.get("project_id") or not cred_json.get("client_email") or not pk:
+                print("[Firebase Init Warning] متغيرات Firebase غير مكتملة")
+                return False
+            init_kwargs = {'databaseURL': os.getenv("FIREBASE_DATABASE_URL")}
+            if not init_kwargs.get("databaseURL"):
+                init_kwargs.pop("databaseURL", None)
+            firebase_admin.initialize_app(credentials.Certificate(cred_json), init_kwargs)
         return True
     except Exception as e: print(f"[Firebase Init Error] {e}")
     return False
