@@ -46,9 +46,16 @@
             --user-bg: #1c3042;
             --user-line: #3f6c94;
             --ai-bg: #182635;
+            --brand-tint: #17313c;
+            --brand-soft: #1e3a47;
             --shadow-1: 0 1px 2px rgba(0,0,0,.3);
             --shadow-2: 0 14px 34px -14px rgba(0,0,0,.6);
         }
+        html.dark .user-avatar { color: #7fd0c4; }
+        html.dark .conv-new { color: #7fd0c4; }
+        html.dark .conv-new:hover { color: #fff; }
+        html.dark .model-opt.active { color: #7fd0c4; }
+        html.dark .model-opt.active .model-opt-icon { color: #7fd0c4; }
 
         /* ============ أساسيات ============ */
         * { box-sizing: border-box; }
@@ -116,6 +123,7 @@
 
         /* ============ شاشة الدخول ============ */
         .login-screen {
+            overflow-y: auto;
             background:
                 radial-gradient(900px 480px at 85% -10%, rgba(15,118,110,.10), transparent 60%),
                 radial-gradient(800px 420px at 0% 110%, rgba(15,118,110,.08), transparent 60%),
@@ -150,6 +158,7 @@
             display: flex; align-items: center; gap: 10px;
             padding: 10px 16px; background: var(--surface);
             border-bottom: 1px solid var(--line);
+            flex-shrink: 0; position: sticky; top: 0; z-index: 30;
         }
         .menu-btn {
             width: 40px; height: 40px; border-radius: 50%; border: none; background: transparent;
@@ -158,8 +167,40 @@
             transition: background .15s ease;
         }
         .menu-btn:hover { background: var(--surface-2); }
-        .app-bar-title { font-size: 16px; font-weight: 800; font-family: 'Cairo', sans-serif; flex: 1; }
         .app-bar-spacer { flex: 1; }
+
+        /* منتقي النموذج (Gemini style) */
+        .model-picker { position: relative; }
+        .model-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line);
+            background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 700;
+            cursor: pointer; font-family: 'Cairo', sans-serif;
+            transition: background .15s ease, border-color .15s ease;
+        }
+        .model-pill:hover { background: var(--surface-2); }
+        .model-chev { font-size: 10px; color: var(--ink-soft); }
+        .model-menu {
+            position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+            width: 230px; background: var(--surface); border: 1px solid var(--line);
+            border-radius: 16px; box-shadow: var(--shadow-2); padding: 6px; z-index: 90;
+            animation: msgIn .15s ease both;
+        }
+        .model-menu .model-label { padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+        .model-opt {
+            display: flex; align-items: center; gap: 12px; width: 100%;
+            padding: 11px 14px; border: none; border-radius: 12px; background: transparent;
+            color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: 'Tajawal', sans-serif; transition: background .15s ease;
+        }
+        .model-opt:hover { background: var(--surface-2); }
+        .model-opt.active { background: var(--brand-tint); color: var(--brand-strong); }
+        .model-opt-icon { width: 20px; text-align: center; color: var(--ink-soft); }
+        .model-opt.active .model-opt-icon { color: var(--brand); }
+        .model-opt-check { margin-right: auto; color: var(--brand); }
+        .model-opt-lock { margin-right: auto; color: var(--ink-soft); font-size: 12px; }
+        .model-opt.disabled { opacity: .45; cursor: not-allowed; }
+        .model-opt.disabled:hover { background: transparent; }
 
         /* ============ السايدبار المنزلق ============ */
         .drawer-overlay {
@@ -203,6 +244,52 @@
         }
         .user-name { font-size: 14px; font-weight: 700; color: var(--ink); }
         .user-role { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+
+        /* قسم المحادثات */
+        .conv-section {
+            margin: 0 14px 6px; padding: 10px 12px;
+            border-radius: var(--radius); border: 1px solid var(--line);
+            background: var(--surface);
+            max-height: 32vh; display: flex; flex-direction: column;
+        }
+        .conv-head {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .conv-label { font-size: 12px; font-weight: 800; color: var(--ink-soft); letter-spacing: .3px; }
+        .conv-new {
+            width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer;
+            background: var(--brand-soft); color: var(--brand-strong); font-size: 12px;
+            display: flex; align-items: center; justify-content: center;
+            transition: background .15s ease;
+        }
+        .conv-new:hover { background: var(--brand); color: #fff; }
+        .conv-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .conv-item {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            padding: 8px 10px; border-radius: 10px; cursor: pointer;
+            border: 1px solid transparent; transition: background .15s ease;
+        }
+        .conv-item:hover { background: var(--surface-2); }
+        .conv-item.active { background: var(--brand-tint); border-color: var(--brand); }
+        .conv-main {
+            flex: 1; min-width: 0; cursor: pointer; overflow: hidden;
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .conv-name {
+            display: block; font-size: 13px; font-weight: 600; color: var(--ink);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .conv-book {
+            display: block; font-size: 11px; color: var(--ink-soft);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .conv-del {
+            border: none; background: transparent; color: var(--ink-soft); cursor: pointer;
+            font-size: 12px; padding: 4px; border-radius: 6px; flex-shrink: 0;
+        }
+        .conv-del:hover { color: #a32727; background: #fbeceb; }
+        .conv-empty { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 10px 4px; }
 
         .sidebar-nav { flex: 1; padding: 6px 14px; display: flex; flex-direction: column; gap: 8px; }
         .nav-btn {
@@ -249,6 +336,50 @@
         }
         .sugg-chip:hover { border-color: var(--brand); background: var(--brand-tint); transform: translateY(-1px); }
 
+        /* شريط المادة المختارة */
+        .book-bar {
+            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+            padding: 8px 18px; background: var(--brand-tint); border-bottom: 1px solid var(--line);
+            font-size: 13px; font-weight: 700; color: var(--ink);
+        }
+        .book-bar .book-dot { color: var(--brand); }
+        .book-bar .book-empty { font-weight: 400; color: var(--ink-soft); }
+        .book-bar .book-name { color: var(--brand-strong); }
+        html.dark .book-bar .book-name { color: #7fd0c4; }
+
+        /* اختيار المادة عند بداية محادثة جديدة */
+        .book-picker { padding: 28px 20px; min-height: 48vh; }
+        .book-picker-title { font-size: 18px; font-weight: 800; color: var(--ink); font-family: 'Cairo', sans-serif; margin-bottom: 4px; }
+        .book-picker-sub { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 22px; line-height: 1.8; }
+        .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; max-width: 640px; margin: 0 auto; }
+        .book-card {
+            display: flex; align-items: center; gap: 14px; text-align: right;
+            padding: 16px; border-radius: 16px; border: 1.5px solid var(--line);
+            background: var(--surface); cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .1s ease;
+        }
+        .book-card:hover { border-color: var(--brand); background: var(--brand-tint); transform: translateY(-1px); }
+        .book-card.selected { border-color: var(--brand); background: var(--brand-tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+        .book-card.selected .book-icon { background: var(--brand); color: #fff; }
+        .model-sec { margin-top: 26px; padding-top: 22px; border-top: 1px dashed var(--line); max-width: 640px; margin-left: auto; margin-right: auto; }
+        .model-pills { display: flex; flex-wrap: wrap; gap: 10px; }
+        .model-pill-opt {
+            padding: 10px 16px; border-radius: 999px; border: 1.5px solid var(--line);
+            background: var(--surface); color: var(--ink); cursor: pointer; font-family: 'Cairo', sans-serif; font-size: 13.5px; font-weight: 700;
+            transition: border-color .15s ease, background .15s ease, transform .1s ease;
+        }
+        .model-pill-opt:hover { border-color: var(--brand); background: var(--brand-tint); transform: translateY(-1px); }
+        .model-pill-opt.selected { border-color: var(--brand); background: var(--brand); color: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+        .start-btn-wrap { display: flex; justify-content: center; margin-top: 30px; }
+        #startConvBtn { min-width: 220px; padding: 13px 26px; font-size: 15px; border-radius: 999px; }
+        #startConvBtn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+        .book-card .book-icon {
+            width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+            background: var(--brand-soft); color: var(--brand-strong);
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        .book-card .book-title { font-size: 14.5px; font-weight: 700; color: var(--ink); font-family: 'Cairo', sans-serif; }
+        .book-card .book-desc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
         /* فقاعات الرسائل */
         .chat-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; animation: msgIn .28s ease both; }
         @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -276,7 +407,7 @@
         .chat-ai { flex-direction: row-reverse; }
 
         /* حقل الإدخال (كبسولة) */
-        .input-bar { padding: 14px 16px 18px; }
+        .input-bar { padding: 14px 16px 18px; flex-shrink: 0; position: sticky; bottom: 0; z-index: 30; background: var(--bg); }
         .input-shell {
             max-width: 780px; margin: 0 auto; display: flex; align-items: center; gap: 6px;
             background: var(--surface); border: 1.5px solid var(--line); border-radius: 30px;
@@ -362,7 +493,7 @@
     </style>
 </head>
 
-<body class="h-screen flex flex-col bg-[#f3f6f5] text-[#182b34] dark:bg-[#0d151d] dark:text-[#e9eff4]">
+<body class="h-screen flex flex-col overflow-hidden bg-[#f3f6f5] text-[#182b34] dark:bg-[#0d151d] dark:text-[#e9eff4]">
 
     <!-- ============ شاشة الدخول ============ -->
     <div id="loginScreen" class="flex-1 flex items-center justify-center login-screen">
@@ -390,17 +521,46 @@
     </div>
 
     <!-- ============ التطبيق ============ -->
-    <div id="appScreen" class="hidden flex-1 flex-col min-h-0">
+    <div id="appScreen" class="hidden flex-1 flex flex-col min-h-0">
 
         <!-- الشريط العلوي -->
         <div class="app-bar">
             <button id="menuBtn" class="menu-btn" onclick="toggleSidebar()" title="القائمة"><i class="fas fa-bars"></i></button>
-            <div class="app-bar-title">المساعد التمريضي</div>
+            <div class="app-bar-spacer"></div>
+
+            <div class="model-picker" id="modelPicker">
+                <button class="model-pill" onclick="toggleModelMenu(event)">
+                    <i class="fas fa-robot" style="color:var(--brand);"></i>
+                    <span id="modelName">Gemini</span>
+                    <i class="fas fa-chevron-down model-chev"></i>
+                </button>
+                <div class="model-menu hidden" id="modelMenu">
+                    <div class="model-label">مزود الذكاء الاصطناعي</div>
+                    <button class="model-opt" data-provider="gemini" onclick="setProvider('gemini')">
+                        <i class="fab fa-google model-opt-icon"></i>
+                        <span>Gemini</span>
+                        <i class="fas fa-lock model-opt-lock hidden"></i>
+                        <i class="fas fa-check model-opt-check hidden"></i>
+                    </button>
+                    <button class="model-opt" data-provider="groq" onclick="setProvider('groq')">
+                        <i class="fas fa-bolt model-opt-icon"></i>
+                        <span>Groq</span>
+                        <i class="fas fa-lock model-opt-lock hidden"></i>
+                        <i class="fas fa-check model-opt-check hidden"></i>
+                    </button>
+                    <div class="model-label" id="modelHint" style="color:var(--ink-soft);"></div>
+                </div>
+            </div>
+
             <div class="app-bar-spacer"></div>
             <button id="themeToggleApp" class="icon-btn" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
         </div>
 
         <div class="flex-1 flex flex-col min-h-0">
+            <div id="bookBar" class="book-bar">
+                <i class="fas fa-book book-dot"></i>
+                <span id="bookBarText" class="book-empty">لم يتم اختيار مادة بعد — ابدأ محادثة جديدة واختر المادة</span>
+            </div>
             <div id="chatBox" class="chat-box">
                 <div class="chat-inner">
                     <div class="empty-state" id="emptyState">
@@ -421,7 +581,7 @@
                     <input id="prompt" class="input-field send-input" placeholder="اسأل عن أي شيء في المنهج..." autocomplete="off" required>
                     <button id="btnSend" type="submit" class="send-btn-round" title="إرسال"><i class="fas fa-arrow-up"></i></button>
                 </form>
-                <div class="input-note">المساعد يستند إلى المراجع المرفوعة فقط، راجع المصادر الرسمية عند الحاجة</div>
+                <div class="input-note">الإجابات من <b id="noteProvider">Gemini</b> — راجع المصادر الرسمية عند الحاجة</div>
             </div>
         </div>
 
@@ -445,10 +605,15 @@
                 </div>
             </div>
 
+            <div class="conv-section">
+                <div class="conv-head">
+                    <span class="conv-label">المحادثات</span>
+                    <button id="newConvBtn" class="conv-new" title="محادثة جديدة" onclick="newConversation()"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="convList" class="conv-list"></div>
+            </div>
+
             <nav class="sidebar-nav">
-                <button id="adminPromoteBtn" class="nav-btn nav-amber hidden">
-                    <i class="fas fa-crown"></i><span>طلب ترقية لأدمن</span>
-                </button>
                 <button id="adminPanelBtn" class="nav-btn nav-amber hidden">
                     <i class="fas fa-user-shield"></i><span>لوحة الإدارة</span>
                 </button>
@@ -525,6 +690,215 @@
 
     <script>
         let currentUser = null, chatHistory = [];
+        let currentConvId = '', convs = [], currentBook = '', currentModel = '', BOOKS = [];
+        let geminiModels = [];
+
+        function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+        function bookTitle(id) {
+            const b = (BOOKS || []).find(x => x.id === id);
+            return b ? b.title : (id || 'كتاب');
+        }
+
+        function updateBookBar() {
+            const bar = document.getElementById('bookBarText');
+            if (!bar) return;
+            if (currentBook) {
+                let t = '<i class="fas fa-book-bookmark book-dot"></i> المادة المختارة: <span class="book-name">' + esc(bookTitle(currentBook)) + '</span>';
+                if (provider === 'gemini' && currentModel) {
+                    t += ' · <span class="book-name">نسخة Gemini: ' + esc(currentModel) + '</span>';
+                }
+                bar.innerHTML = t;
+            } else {
+                bar.innerHTML = 'لم يتم اختيار مادة بعد — ابدأ محادثة جديدة واختر المادة';
+            }
+        }
+
+        function pickerRequirementsMet() {
+            if (!currentBook) return false;
+            if (provider === 'gemini') return !!currentModel;
+            return true;
+        }
+
+        function updateStartBtn() {
+            const btn = document.getElementById('startConvBtn');
+            if (!btn) return;
+            const ok = pickerRequirementsMet();
+            btn.disabled = !ok;
+            if (!currentBook) btn.innerHTML = '<i class="fas fa-book"></i> اختر المادة أولاً';
+            else if (provider === 'gemini' && !currentModel) btn.innerHTML = '<i class="fas fa-microchip"></i> اختر نسخة Gemini أولاً';
+            else btn.innerHTML = '<i class="fas fa-play"></i> بدء المحادثة';
+        }
+
+        function selectBook(id) {
+            currentBook = id;
+            document.querySelectorAll('.book-card').forEach(c => c.classList.toggle('selected', c.dataset.book === id));
+            updateStartBtn();
+            updateBookBar();
+        }
+
+        window.selectBook = selectBook;
+
+        function selectModel(m) {
+            currentModel = m;
+            document.querySelectorAll('.model-pill-opt').forEach(p => p.classList.toggle('selected', p.dataset.model === m));
+            updateStartBtn();
+            updateBookBar();
+        }
+
+        window.selectModel = selectModel;
+
+        function startConversation() {
+            if (!pickerRequirementsMet()) { updateStartBtn(); return; }
+            updateBookBar();
+            showEmptyState();
+            renderConversations();
+            const p = document.getElementById('prompt');
+            if (p) p.focus();
+        }
+
+        window.startConversation = startConversation;
+
+        function showBookPicker() {
+            const inner = document.querySelector('#chatBox .chat-inner');
+            if (!inner) return;
+            const desc = {
+                anatomy: 'هيكل جسم الإنسان وأعضاؤه',
+                physiology: 'وظائف الأعضاء وأجهزة الجسم',
+                practical: 'مهارات وإجراءات التمريض العملي',
+                theory: 'المنهج النظري والمفاهيم الأساسية'
+            };
+            let cards = '';
+            (BOOKS || []).forEach(b => {
+                cards += '<div class="book-card' + (b.id === currentBook ? ' selected' : '') + '" data-book="' + b.id + '" onclick="selectBook(\'' + b.id + '\')">' +
+                    '<div class="book-icon"><i class="fas fa-book-open"></i></div>' +
+                    '<div><div class="book-title">' + esc(b.title) + '</div>' +
+                    '<div class="book-desc">' + esc(desc[b.id] || '') + '</div></div></div>';
+            });
+            let modelSec = '';
+            if (provider === 'gemini') {
+                if (geminiModels.length) {
+                    let pills = '';
+                    geminiModels.forEach(m => {
+                        pills += '<button type="button" class="model-pill-opt' + (m === currentModel ? ' selected' : '') + '" data-model="' + m + '" onclick="selectModel(\'' + m + '\')">' + esc(m) + '</button>';
+                    });
+                    modelSec = '<div class="model-sec">' +
+                        '<div class="book-picker-title" style="font-size:16px;">اختر نسخة Gemini لهذه المحادثة</div>' +
+                        '<div class="book-picker-sub">المساعد هيستعمل النسخة دي في كل إجابات المحادثة دي.</div>' +
+                        '<div class="model-pills">' + pills + '</div></div>';
+                } else {
+                    modelSec = '<div class="model-sec"><div class="book-picker-title" style="font-size:16px;color:var(--danger);">لا توجد نماذج Gemini مفعّلة</div>' +
+                        '<div class="book-picker-sub">أضف GEMINI_API_KEY_1 قبل بدء محادثة.</div></div>';
+                }
+            }
+            inner.innerHTML = '<div class="book-picker">' +
+                '<div class="book-picker-title">اختر المادة الدراسية لهذه المحادثة</div>' +
+                '<div class="book-picker-sub">كل محادثة تعمل على كتاب واحد فقط — لو سألت عن مادة أخرى سيرفض المساعد الإجابة ويطلب فتح محادثة جديدة. اختيارك يساعد على إجابات أدق واستهلاك أقل للتوكنز.</div>' +
+                '<div class="book-grid">' + cards + '</div>' +
+                modelSec +
+                '<div class="start-btn-wrap"><button id="startConvBtn" class="btn-primary" onclick="startConversation()" disabled><i class="fas fa-book"></i> اختر المادة أولاً</button></div>' +
+                '</div>';
+            chatHistory = [];
+            updateStartBtn();
+        }
+
+        // ============ المحادثات ============
+        async function refreshConversations() {
+            if (!currentUser) return;
+            try {
+                const r = await fetch('/api/conversations/' + currentUser.username);
+                convs = await r.json();
+            } catch (e) { convs = []; }
+            renderConversations();
+        }
+
+        function renderConversations() {
+            const list = document.getElementById('convList');
+            if (!list) return;
+            if (!convs.length) {
+                list.innerHTML = '<div class="conv-empty">لا توجد محادثات بعد</div>';
+                return;
+            }
+            list.innerHTML = '';
+            convs.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'conv-item' + (c.id === currentConvId ? ' active' : '');
+                item.innerHTML = '<div class="conv-main"><span class="conv-name">' + esc(c.title || 'محادثة') + '</span>' +
+                    '<span class="conv-book">' + esc(bookTitle(c.book)) + '</span></div>' +
+                    '<button class="conv-del" title="حذف"><i class="fas fa-trash"></i></button>';
+                item.querySelector('.conv-main').onclick = () => openConversation(c.id);
+                item.querySelector('.conv-del').onclick = (e) => { e.stopPropagation(); deleteConversation(c.id); };
+                list.appendChild(item);
+            });
+        }
+
+        function showEmptyState() {
+            const inner = document.querySelector('#chatBox .chat-inner');
+            if (!inner || document.getElementById('emptyState')) return;
+            const greet = currentUser ? (currentUser.name || '').trim() : '';
+            const sub = currentBook
+                ? 'أنا المساعد التمريضي الذكي، سأجيب على أسئلتك في «' + esc(bookTitle(currentBook)) + '» فقط' + (provider === 'gemini' && currentModel ? ' بنسخة Gemini: ' + esc(currentModel) : '') + ' — وأرفض أي سؤال عن مادة أخرى.'
+                : 'أنا المساعد التمريضي الذكي، أجيب على أسئلتك مباشرة من كتب المنهج المرفوعة — تشريح، فسيولوجيا، وتمريض عملي.';
+            inner.innerHTML = '<div class="empty-state" id="emptyState">' +
+                '<div class="empty-orb"><i class="fas fa-stethoscope"></i></div>' +
+                '<div class="empty-greet">مرحباً، <span>' + esc(greet) + '</span> 👋</div>' +
+                '<div class="empty-sub">' + sub + '</div>' +
+                '<div class="sugg">' +
+                '<span class="sugg-chip" onclick="quickAsk(this)">ما هي وظائف الجهاز التنفسي؟</span>' +
+                '<span class="sugg-chip" onclick="quickAsk(this)">شرح أجزاء القلب</span>' +
+                '<span class="sugg-chip" onclick="quickAsk(this)">خطوات الفحص السريري</span>' +
+                '</div></div>';
+        }
+
+        function clearChat() {
+            const inner = document.querySelector('#chatBox .chat-inner');
+            if (inner) inner.innerHTML = '';
+            chatHistory = [];
+        }
+
+        window.newConversation = () => {
+            currentConvId = '';
+            currentBook = '';
+            currentModel = '';
+            clearChat();
+            showBookPicker();
+            updateBookBar();
+            renderConversations();
+            closeSidebar();
+            const p = document.getElementById('prompt');
+            if (p) p.focus();
+        };
+
+        window.openConversation = async (cid, skipRender) => {
+            currentConvId = cid;
+            const c = (convs || []).find(x => x.id === cid);
+            currentBook = c ? c.book : '';
+            currentModel = c ? (c.model || '') : '';
+            updateBookBar();
+            clearChat();
+            closeSidebar();
+            try {
+                const r = await fetch('/api/messages/' + currentUser.username + '?conversation_id=' + encodeURIComponent(cid));
+                const msgs = await r.json();
+                if (Array.isArray(msgs) && msgs.length) {
+                    msgs.forEach(m => appendBubble(m.content, m.role === 'user' ? 'user' : 'assistant', true));
+                    chatHistory = msgs.map(m => ({ role: m.role, content: m.content }));
+                } else {
+                    showEmptyState();
+                }
+            } catch (e) { showEmptyState(); }
+            if (!skipRender) renderConversations();
+        };
+
+        window.deleteConversation = async (cid) => {
+            if (!confirm('حذف هذه المحادثة نهائياً؟')) return;
+            try {
+                await fetch('/api/conversations/' + currentUser.username + '/' + cid, { method: 'DELETE' });
+            } catch (e) {}
+            if (currentConvId === cid) { currentConvId = ''; currentBook = ''; currentModel = ''; clearChat(); updateBookBar(); showBookPicker(); }
+            refreshConversations();
+        };
+
         if (sessionStorage.getItem('nk')) { try { currentUser = JSON.parse(sessionStorage.getItem('nk')); showApp(); initMsgs(); } catch (e) {} }
 
         // ============ السايدبار المنزلق ============
@@ -534,6 +908,82 @@
             const open = d.classList.toggle('open');
             o.classList.toggle('show', open);
         }
+
+        function closeSidebar() {
+            const d = document.getElementById('sideDrawer');
+            const o = document.getElementById('sidebarOverlay');
+            if (d) d.classList.remove('open');
+            if (o) o.classList.remove('show');
+        }
+
+        // ============ منتقي النموذج (Gemini / Groq) ============
+        let provider = localStorage.getItem('provider') || 'gemini';
+        let availableProviders = { gemini: true, groq: true };
+
+        function updateModelUI() {
+            document.getElementById('modelName').innerText = provider === 'gemini' ? 'Gemini' : 'Groq';
+            document.getElementById('noteProvider').innerText = provider === 'gemini' ? 'Gemini' : 'Groq';
+            document.querySelectorAll('.model-opt').forEach(o => {
+                const p = o.dataset.provider;
+                const active = p === provider;
+                const avail = !!availableProviders[p];
+                o.classList.toggle('active', active);
+                o.classList.toggle('disabled', !avail);
+                o.disabled = !avail;
+                o.querySelector('.model-opt-check').classList.toggle('hidden', !active);
+                o.querySelector('.model-opt-lock').classList.toggle('hidden', avail);
+            });
+        }
+
+        async function loadProviders() {
+            try {
+                const r = await fetch('/api/providers');
+                const d = await r.json();
+                availableProviders = { gemini: !!d.gemini, groq: !!d.groq };
+                geminiModels = Array.isArray(d.gemini_models) ? d.gemini_models : [];
+            } catch (e) {}
+            if (document.querySelector('.book-picker') && typeof showBookPicker === 'function') { showBookPicker(); }
+            const hint = document.getElementById('modelHint');
+            if (!availableProviders.gemini && !availableProviders.groq) {
+                hint.innerText = "لم تتم إضافة أي مفاتيح API بعد.";
+            } else if (!availableProviders.gemini) {
+                hint.innerText = "لم تتم إضافة مفتاح Gemini.";
+            } else if (!availableProviders.groq) {
+                hint.innerText = "لم تتم إضافة مفتاح Groq.";
+            } else {
+                hint.innerText = "";
+            }
+            if (!availableProviders[provider]) {
+                const next = availableProviders.gemini ? 'gemini' : (availableProviders.groq ? 'groq' : provider);
+                provider = next;
+                localStorage.setItem('provider', provider);
+            }
+            updateModelUI();
+        }
+
+        window.toggleModelMenu = (e) => {
+            e.stopPropagation();
+            document.getElementById('modelMenu').classList.toggle('hidden');
+        };
+
+        window.setProvider = (p) => {
+            if (!availableProviders[p]) return;
+            provider = p;
+            localStorage.setItem('provider', p);
+            updateModelUI();
+            document.getElementById('modelMenu').classList.add('hidden');
+            if (document.querySelector('.book-picker')) { showBookPicker(); }
+            updateBookBar();
+        };
+
+        document.addEventListener('click', (e) => {
+            const picker = document.getElementById('modelPicker');
+            if (picker && !picker.contains(e.target)) {
+                document.getElementById('modelMenu').classList.add('hidden');
+            }
+        });
+        updateModelUI();
+        loadProviders();
 
         // ============ إدارة الوضع الداكن ============
         const themeToggles = document.querySelectorAll('#themeToggleLogin, #themeToggleApp');
@@ -590,26 +1040,22 @@
             document.getElementById('uAvatar').innerText = (currentUser.name || '؟').trim().charAt(0) || '؟';
             document.getElementById('greetName').innerText = (currentUser.name || '').trim();
             if (currentUser.isAdmin) {
-                document.getElementById('adminPromoteBtn').classList.add('hidden');
                 document.getElementById('adminPanelBtn').classList.remove('hidden');
             }
         }
 
-        // تحميل تاريخ المحادثة من الخادم
+        // تحميل المقررات + قائمة المحادثات + آخر محادثة من الخادم
         async function initMsgs() {
-            const box = document.getElementById('chatBox');
-            const empty = document.getElementById('emptyState');
-            try {
-                const r = await fetch('/api/messages/' + currentUser.username);
-                const msgs = await r.json();
-                if (Array.isArray(msgs) && msgs.length) {
-                    if (empty) empty.remove();
-                    msgs.forEach(m => {
-                        appendBubble(m.content, m.role === 'user' ? 'user' : 'assistant', true);
-                    });
-                    chatHistory = msgs.map(m => ({ role: m.role, content: m.content }));
-                }
-            } catch (e) {}
+            try { BOOKS = await (await fetch('/api/books')).json(); } catch (e) { BOOKS = []; }
+            await refreshConversations();
+            if (convs.length) {
+                currentConvId = convs[0].id;
+                await openConversation(currentConvId, true);
+            } else {
+                currentBook = '';
+                updateBookBar();
+                showBookPicker();
+            }
         }
 
         async function openAdminPanel() {
@@ -738,18 +1184,6 @@
             }
         };
 
-        document.getElementById('adminPromoteBtn').onclick = async () => {
-            document.getElementById('adminPromoteBtn').disabled = true;
-            document.getElementById('adminPromoteBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الطلب...';
-            const payload = { username: currentUser.username, prompt: "request_promotion", history: [] };
-            try {
-                const r = await fetch('/api/promote-to-admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                let d = {}; try { d = await r.json(); } catch (e) {}
-                if (d && d.status === 'success') { alert("تم ترقية صلاحياتك!"); location.reload(); }
-                else { alert(d.message || "تم رفض الطلب"); location.reload(); }
-            } catch (err) { alert("فشل الاتصال."); location.reload(); }
-        };
-
         // سؤال سريع من الاقتراحات
         window.quickAsk = (el) => {
             const prompt = document.getElementById('prompt');
@@ -761,16 +1195,23 @@
             e.preventDefault();
             const inp = document.getElementById('prompt'), btn = document.getElementById('btnSend');
             const txt = inp.value.trim(); if (!txt) return;
+            if (!currentBook) { showBookPicker(); return; }
+            if (provider === 'gemini' && !currentModel) { showBookPicker(); return; }
             appendBubble(txt, 'user'); inp.value = '';
             btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             try {
                 const r = await fetch('/api/chat', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: currentUser.username, prompt: txt, history: chatHistory })
+                    body: JSON.stringify({ username: currentUser.username, prompt: txt, history: chatHistory, provider: provider, conversation_id: currentConvId || '', book: currentBook, model: (provider === 'gemini' ? currentModel : '') })
                 });
                 const d = await r.json();
                 appendBubble(d.reply, 'assistant');
                 chatHistory.push({ role: 'user', content: txt }, { role: 'assistant', content: d.reply });
+                if (d.conversation_id && d.conversation_id !== currentConvId) {
+                    currentConvId = d.conversation_id;
+                }
+                if (d.book) { currentBook = d.book; updateBookBar(); }
+                await refreshConversations();
             } catch (err) { appendBubble("عذراً، حدث خطأ في الاتصال.", 'assistant'); }
             btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrow-up"></i>';
         };
