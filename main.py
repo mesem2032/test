@@ -196,13 +196,13 @@ if DEV_MODE:
             return True, "تم الترقية بنجاح! أعد تسجيل الدخول."
         return False, "لم يتم العثور على الحساب في قاعدة البيانات."
 else:
-    _fs = None
-    def _fs_client():
-        global _fs
-        if _fs is None:
-            from firebase_admin import firestore as _fstore
-            _fs = _fstore.client()
-        return _fs
+    def _norm_msgs(m):
+        if isinstance(m, dict):
+            try:
+                return [m[k] for k in sorted(m, key=lambda x: int(x)) if isinstance(m.get(k), dict)]
+            except Exception:
+                return [v for v in m.values() if isinstance(v, dict)]
+        return m if isinstance(m, list) else []
 
     def get_users_db():
         try:
@@ -215,60 +215,59 @@ else:
         cid = uuid4().hex[:12]
         now = int(time.time() * 1000)
         try:
-            _fs_client().document(f"conversations/{username}/convs/{cid}").set(
-                {"title": title or "محادثة جديدة", "createdAt": now, "updatedAt": now, "lastMsg": "",
-                 "book": (book or "anatomy"), "model": (model or ""), "count": 0}
-            )
+            db.reference(f'conversations/{username}/{cid}').set({
+                "title": title or "محادثة جديدة", "createdAt": now, "updatedAt": now, "lastMsg": "",
+                "book": (book or "anatomy"), "model": (model or ""), "count": 0, "messages": []
+            })
             return cid, True, ""
         except Exception as e:
             return "", False, str(e)
 
     def list_conversations_db(username):
         try:
-            from firebase_admin import firestore as _fstore
-            ref = _fs_client().collection(f"conversations/{username}/convs")
-            docs = ref.order_by("updatedAt", direction=_fstore.DESCENDING).stream()
-            return [{"id": d.id, "title": (d.to_dict().get("title") or ""),
-                     "createdAt": d.to_dict().get("createdAt", 0),
-                     "updatedAt": d.to_dict().get("updatedAt", 0),
-                     "lastMsg": d.to_dict().get("lastMsg", ""),
-                     "book": d.to_dict().get("book", "anatomy"),
-                     "model": d.to_dict().get("model", ""),
-                     "count": d.to_dict().get("count", 0)} for d in docs]
+            data = db.reference(f'conversations/{username}').get() or {}
+            out = []
+            for cid, c in (data.items() if isinstance(data, dict) else []):
+                if not isinstance(c, dict):
+                    continue
+                msgs = _norm_msgs(c.get("messages", []))
+                out.append({"id": cid, "title": (c.get("title") or ""),
+                            "createdAt": c.get("createdAt", 0),
+                            "updatedAt": c.get("updatedAt", 0),
+                            "lastMsg": c.get("lastMsg", ""),
+                            "book": c.get("book", "anatomy"),
+                            "model": c.get("model", ""),
+                            "count": len(msgs)})
+            out.sort(key=lambda x: -x.get("updatedAt", 0))
+            return out
         except Exception as e:
             print(f"[Conv List Error] {e}")
             return []
 
     def get_conversation_db(username, conv_id):
         try:
-            d = _fs_client().document(f"conversations/{username}/convs/{conv_id}").get()
-            if d.exists:
-                data = d.to_dict()
-                data["id"] = conv_id
-                return data
+            d = db.reference(f'conversations/{username}/{conv_id}').get()
+            if d and isinstance(d, dict):
+                d["id"] = conv_id
+                return d
         except: pass
         return None
 
     def save_msg(username: str, conv_id: str, role: str, content: str):
         try:
-            from firebase_admin import firestore as _fstore
             now = int(time.time() * 1000)
-            fs = _fs_client()
-            conv_ref = fs.document(f"conversations/{username}/convs/{conv_id}")
-            conv_ref.collection("messages").document().set(
-                {"role": role, "content": content, "timestamp": now}
-            )
-            conv_ref.update({"updatedAt": now, "lastMsg": content[:120],
-                             "count": _fstore.Increment(1)})
+            ref = db.reference(f'conversations/{username}/{conv_id}')
+            msgs = _norm_msgs(ref.child('messages').get())
+            msgs.append({"role": role, "content": content, "timestamp": now})
+            ref.update({"messages": msgs, "updatedAt": now,
+                        "lastMsg": content[:120], "count": len(msgs)})
         except Exception as e:
             print(f"[Save Msg Error] {e}")
 
     def load_history(username: str, conv_id: str = ""):
         try:
-            ref = _fs_client().collection(f"conversations/{username}/convs/{conv_id}/messages")
-            docs = ref.order_by("timestamp").stream()
-            return [{"role": d.get("role"), "content": d.get("content"),
-                     "timestamp": d.get("timestamp", 0)} for d in docs]
+            d = db.reference(f'conversations/{username}/{conv_id}/messages').get()
+            return sorted(_norm_msgs(d), key=lambda x: x.get("timestamp", 0))
         except Exception as e:
             print(f"[Load Msg Error] {e}")
             return []
@@ -282,23 +281,20 @@ else:
 
     def rename_conversation_db(username, conv_id, title):
         try:
-            _fs_client().document(f"conversations/{username}/convs/{conv_id}").update({"title": title})
+            db.reference(f'conversations/{username}/{conv_id}').update({"title": title})
             return True, ""
         except Exception as e:
             return False, str(e)
 
     def delete_conversation_db(username, conv_id):
         try:
-            fs = _fs_client()
-            for m in fs.collection(f"conversations/{username}/convs/{conv_id}/messages").list_documents():
-                m.delete()
-            fs.document(f"conversations/{username}/convs/{conv_id}").delete()
+            db.reference(f'conversations/{username}/{conv_id}').delete()
             return True, ""
         except Exception as e:
             return False, str(e)
 
     def migrate_legacy_chats(username):
-        # ترحيل الرسائل القديمة (chats/{username} في Realtime DB) إلى محادثة Firestore
+        # ترحيل الرسائل القديمة (chats/{username}) إلى محادثة في Realtime DB
         try:
             if list_conversations_db(username):
                 return
@@ -312,11 +308,11 @@ else:
             cid, ok, _ = create_conversation_db(username, "محادثة سابقة")
             if not ok:
                 return
-            conv = _fs_client().document(f"conversations/{username}/convs/{cid}")
+            ref = db.reference(f'conversations/{username}/{cid}/messages')
             for m in msgs:
-                conv.collection("messages").add({"role": m.get("role", "user"),
-                                                 "content": m.get("content", ""),
-                                                 "timestamp": m.get("timestamp", 0)})
+                ref.push({"role": m.get("role", "user"),
+                          "content": m.get("content", ""),
+                          "timestamp": m.get("timestamp", 0)})
             try:
                 db.reference(f'chats/{username}').delete()
             except: pass
@@ -341,11 +337,8 @@ else:
         try:
             db.reference(f'users/{uname}').delete()
             db.reference(f'chats/{uname}').delete()
-            # حذف محادثات المستخدم من Firestore
             try:
-                fs = _fs_client()
-                for c in fs.collection(f"conversations/{uname}/convs").list_documents():
-                    c.delete()
+                db.reference(f'conversations/{uname}').delete()
             except: pass
             return True, ""
         except Exception as e:
