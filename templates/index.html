@@ -406,6 +406,18 @@
         .chat-ai .chat-meta { color: var(--brand); }
         .chat-ai { flex-direction: row-reverse; }
 
+        /* تنسيق محتوى الرد (عناوين / قوائم / توكيد) */
+        .chat-bubble h4, .chat-bubble h5 { margin: 12px 0 5px; font-family: 'Cairo', sans-serif; color: var(--brand-strong); font-weight: 800; }
+        .chat-bubble h4:first-child, .chat-bubble h5:first-child { margin-top: 0; }
+        .chat-bubble ol, .chat-bubble ul { margin: 6px 0; padding-right: 20px; }
+        .chat-bubble li { margin: 4px 0; }
+        .chat-bubble strong { color: var(--brand-strong); font-weight: 700; }
+        .chat-bubble code {
+            background: var(--brand-tint); color: var(--brand-strong); padding: 1px 6px;
+            border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px;
+        }
+        .chat-bubble hr { border: none; border-top: 1px dashed var(--line); margin: 10px 0; }
+
         /* حقل الإدخال (كبسولة) */
         .input-bar { padding: 14px 16px 18px; flex-shrink: 0; position: sticky; bottom: 0; z-index: 30; background: var(--bg); }
         .input-shell {
@@ -694,6 +706,45 @@
         let geminiModels = [];
 
         function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+        function inlineFmt(s) {
+            return s
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+                .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+        }
+
+        function formatAI(t) {
+            const lines = esc(t).split('\n');
+            const out = [];
+            let listTag = null;
+            const closeList = () => { if (listTag) { out.push('</' + listTag + '>'); listTag = null; } };
+            const openList = (tag) => { if (listTag !== tag) { closeList(); out.push('<' + tag + '>'); listTag = tag; } };
+            for (const raw of lines) {
+                const line = raw.trimEnd();
+                const h = /^(#{1,6})\s+(.+)$/.exec(line);
+                const num = /^(\d+)[.)]\s+(.+)$/.exec(line);
+                const bul = /^[-*•]\s+(.+)$/.exec(line);
+                if (h) {
+                    closeList();
+                    const tag = h[1].length <= 3 ? 'h4' : 'h5';
+                    out.push('<' + tag + '>' + inlineFmt(h[2]) + '</' + tag + '>');
+                } else if (num) {
+                    openList('ol');
+                    out.push('<li>' + inlineFmt(num[2]) + '</li>');
+                } else if (bul) {
+                    openList('ul');
+                    out.push('<li>' + inlineFmt(bul[1]) + '</li>');
+                } else if (!line.trim()) {
+                    closeList();
+                } else {
+                    closeList();
+                    out.push('<div>' + inlineFmt(line) + '</div>');
+                }
+            }
+            closeList();
+            return out.join('');
+        }
 
         function bookTitle(id) {
             const b = (BOOKS || []).find(x => x.id === id);
@@ -1224,13 +1275,14 @@
             const isUser = r === 'user';
             const name = isUser ? (currentUser ? currentUser.name : 'أنت') : 'المساعد';
             const icon = isUser ? '<i class="fas fa-user-nurse"></i>' : '<i class="fas fa-book-open"></i>';
+            const content = isUser ? esc(t) : formatAI(t);
             const target = inner || c;
             target.insertAdjacentHTML('beforeend',
                 `<div class="chat-row ${isUser ? 'chat-user' : 'chat-ai'}">
                     <div class="chat-avatar">${icon}</div>
                     <div class="chat-bubble">
                         <div class="chat-meta">${name}</div>
-                        <div>${t}</div>
+                        ${content}
                     </div>
                 </div>`);
             c.scrollTop = c.scrollHeight;
