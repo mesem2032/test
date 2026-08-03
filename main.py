@@ -63,6 +63,17 @@ def init_firebase():
     except Exception as e: print(f"[Firebase Init Error] {e}")
     return False
 
+# ============================================================
+# التمييز بين الأدمن والمستخدم العادي يعتمد كلياً على حقل
+# role:admin في بيانات الحساب فقط — يُتحقق منه في كل طلب إداري.
+# ============================================================
+def _is_admin_now(username: str) -> bool:
+    users = get_users_db()
+    return username in users and users[username].get("role", "") == "admin"
+
+def _authorize_admin(username: str = "") -> bool:
+    return _is_admin_now((username or "").strip().lower())
+
 if not DEV_MODE:
     init_firebase()
 
@@ -574,24 +585,40 @@ async def login(d: UserAuth):
         is_admin = (user_role == "admin")
         
         if pwd == db_data[uname].get("password"):
-            return {"status": "success", "name": db_data[uname].get("name"), "username": uname, "isAdmin": is_admin}
+            return {"status": "success", "name": db_data[uname].get("name"),
+                    "username": uname, "isAdmin": is_admin}
             
     return {"status": "error", "message": "الحساب غير موجود أو كلمة المرور خاطئة"}
 
+@app.get("/api/me")
+async def get_my_status(username: str = ""):
+    uname = (username or "").strip().lower()
+    db_data = get_users_db()
+    if uname in db_data:
+        return {"status": "success", "name": db_data[uname].get("name"),
+                "username": uname, "isAdmin": db_data[uname].get("role", "") == "admin"}
+    return {"status": "error", "message": "المستخدم غير موجود", "isAdmin": False}
+
 @app.post("/api/promote-to-admin")
-async def promote_to_admin(req: ChatPayload):
+async def promote_to_admin(req: ChatPayload, acting_username: str = ""):
+    if not _authorize_admin(acting_username):
+        return {"status": "error", "message": "غير مصرح — يجب أن تكون أدمن حالياً"}
     ok, msg = promote_user_db(req.username.strip().lower())
     return {"status": "success" if ok else "error", "message": msg}
 
 @app.post("/api/admin/users/add")
-async def add_user(d: AdminAddUser):
+async def add_user(d: AdminAddUser, acting_username: str = ""):
+    if not _authorize_admin(acting_username):
+        return {"status": "error", "message": "غير مصرح — يجب أن تكون أدمن حالياً"}
     u = d.username.strip().lower()
     if u in get_users_db(): return {"status": "error", "message": "اسم المستخدم موجود بالفعل"}
     ok, msg = add_user_db(u, d.password, d.display_name)
     return {"status": "success" if ok else "error", "message": msg}
 
 @app.get("/api/admin/users/list")
-async def get_admin_users_list():
+async def get_admin_users_list(acting_username: str = ""):
+    if not _authorize_admin(acting_username):
+        return JSONResponse(status_code=403, content={"status": "error", "message": "غير مصرح — يجب أن تكون أدمن حالياً"})
     users = get_users_db()
     table_data = []
     for u_id, u_info in users.items():
@@ -603,12 +630,16 @@ async def get_admin_users_list():
     return JSONResponse(content=table_data)
 
 @app.post("/api/admin/users/update-password")
-async def update_password(req: UserPasswordUpdate):
+async def update_password(req: UserPasswordUpdate, acting_username: str = ""):
+    if not _authorize_admin(acting_username):
+        return {"status": "error", "message": "غير مصرح — يجب أن تكون أدمن حالياً"}
     ok, msg = update_user_password_db(req.username.strip().lower(), req.new_password)
     return {"status": "success" if ok else "error", "message": msg}
 
 @app.post("/api/admin/users/delete")
-async def delete_user(req: UserDeleteRequest):
+async def delete_user(req: UserDeleteRequest, acting_username: str = ""):
+    if not _authorize_admin(acting_username):
+        return {"status": "error", "message": "غير مصرح — يجب أن تكون أدمن حالياً"}
     ok, msg = delete_user_db(req.username.strip().lower())
     return {"status": "success" if ok else "error", "message": msg}
 

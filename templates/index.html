@@ -1090,10 +1090,50 @@
             document.getElementById('uName').innerText = currentUser.name;
             document.getElementById('uAvatar').innerText = (currentUser.name || '؟').trim().charAt(0) || '؟';
             document.getElementById('greetName').innerText = (currentUser.name || '').trim();
-            if (currentUser.isAdmin) {
-                document.getElementById('adminPanelBtn').classList.remove('hidden');
+            applyAdminUI();
+        }
+
+        // تطبيق صلاحية الأدمن على الواجهة فوراً (تظهر/تختفي لوحة الإدارة)
+        function applyAdminUI() {
+            const btn = document.getElementById('adminPanelBtn');
+            if (!btn) return;
+            const isAdmin = !!(currentUser && currentUser.isAdmin);
+            btn.classList.toggle('hidden', !isAdmin);
+            if (!isAdmin) {
+                document.getElementById('adminOverlay').classList.add('hidden');
             }
         }
+
+        // هيدر طلبات لوحة الإدارة — الصلاحية تتحدد كلياً من role:admin في بيانات الحساب
+        function adminHeaders() {
+            return { 'Content-Type': 'application/json' };
+        }
+
+        function actingQuery() {
+            return '?acting_username=' + encodeURIComponent(currentUser.username);
+        }
+
+        // فحص دوري لحالة المستخدم من الخادم (كل 3 ثوانٍ) لتعكس تغيير الصلاحية لحظياً
+        async function refreshMyStatus() {
+            if (!currentUser) return;
+            try {
+                const r = await fetch('/api/me?username=' + encodeURIComponent(currentUser.username));
+                const d = await r.json();
+                if (d.status === 'success') {
+                    const wasAdmin = !!currentUser.isAdmin;
+                    currentUser.name = d.name;
+                    currentUser.isAdmin = !!d.isAdmin;
+                    sessionStorage.setItem('nk', JSON.stringify(currentUser));
+                    document.getElementById('uName').innerText = currentUser.name;
+                    document.getElementById('uAvatar').innerText = (currentUser.name || '؟').trim().charAt(0) || '؟';
+                    if (wasAdmin !== currentUser.isAdmin) applyAdminUI();
+                } else {
+                    document.getElementById('adminOverlay').classList.add('hidden');
+                }
+            } catch (e) {}
+        }
+
+        setInterval(refreshMyStatus, 3000);
 
         // تحميل المقررات + قائمة المحادثات + آخر محادثة من الخادم
         async function initMsgs() {
@@ -1133,8 +1173,8 @@
             msgEl.innerText = "جارٍ الإضافة...";
             msgEl.className = "form-msg block text-[#0f766e]";
             try {
-                const r = await fetch('/api/admin/users/add', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                const r = await fetch('/api/admin/users/add' + actingQuery(), {
+                    method: 'POST', headers: adminHeaders(),
                     body: JSON.stringify({ username: u, password: p, display_name: n })
                 });
                 const d = await r.json();
@@ -1166,8 +1206,8 @@
             statusEl.innerText = "جارٍ التحديث...";
             statusEl.className = "form-msg block text-[#0f766e]";
             try {
-                const r = await fetch('/api/admin/users/update-password', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                const r = await fetch('/api/admin/users/update-password' + actingQuery(), {
+                    method: 'POST', headers: adminHeaders(),
                     body: JSON.stringify({ username: uname, new_password: npass })
                 });
                 const d = await r.json();
@@ -1194,7 +1234,8 @@
             const container = document.getElementById('usersTableContainer');
             container.innerHTML = "<div class='flex justify-center py-6'><i class='fas fa-spinner fa-spin text-xl' style='color:#0f766e'></i></div>";
             try {
-                const res = await fetch('/api/admin/users/list');
+                const res = await fetch('/api/admin/users/list' + actingQuery(), { headers: adminHeaders() });
+                if (res.status === 403) { applyAdminUI(); return; }
                 const users = await res.json();
                 if (!users.length) {
                     container.innerHTML = "<p class='text-center text-[#64757f] py-6'>لا يوجد مستخدمون بعد.</p>";
@@ -1220,8 +1261,8 @@
         window.deleteUser = async (uname) => {
             if (confirm(`هل أنت متأكد من حذف "${uname}" نهائياً؟`)) {
                 try {
-                    const r = await fetch('/api/admin/users/delete', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    const r = await fetch('/api/admin/users/delete' + actingQuery(), {
+                        method: 'POST', headers: adminHeaders(),
                         body: JSON.stringify({ username: uname })
                     });
                     if (!r.ok) {
